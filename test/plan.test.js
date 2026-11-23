@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildPlan, localReply } from '../plan.js';
+import { buildPlan, findCleanerWindow, localReply } from '../plan.js';
+
+test('school pickup by car gives an everyday fuel and exhaust reduction', () => {
+  const { actions: [routine] } = buildPlan({ city: 'Delhi', aqi: 180, household: 'family', commute: 'car', habits: ['school'] });
+  assert.match(routine.description, /engine off while safely parked/i);
+  assert.match(routine.impact, /cuts fuel use and exhaust/i);
+});
 
 const delhi = { city: 'Delhi, India', aqi: 250, pm25: 180, commute: 'car' };
 
@@ -58,4 +64,87 @@ test('offline chat offers low-cost actions when a household has no air purifier'
   assert.match(reply, /candles|incense/i);
   assert.match(reply, /windows/i);
   assert.doesNotMatch(reply, /\b(choose|look for|purchase|buy)\b[^.!?]*\b(purifier|HEPA|filter)\b/i);
+});
+
+test('forecast window uses contiguous future hours and can cross midnight', () => {
+  const forecast = [
+    { time: '2026-11-23T21:00', aqi: 10 },
+    { time: '2026-11-23T22:00', aqi: 20 },
+    { time: '2026-11-23T23:00', aqi: 106 },
+    { time: '2026-11-24T00:00', aqi: 119 },
+    { time: '2026-11-24T01:00', aqi: 115 },
+    { time: '2026-11-24T02:00', aqi: 149 },
+    { time: '2026-11-24T04:00', aqi: 70 },
+  ];
+
+  assert.deepEqual(findCleanerWindow(forecast, '2026-11-23T22:15'), {
+    start: '2026-11-23T23:00', end: '2026-11-24T02:00', minAqi: 106, maxAqi: 119,
+  });
+});
+
+test('gaps, invalid hours, duplicate readings and unhealthy forecasts do not create a window', () => {
+  const forecast = [
+    { time: '2026-11-23T23:00', aqi: 70 },
+    { time: '2026-11-23T23:00', aqi: 250 },
+    { time: '2026-11-24T00:00', aqi: 60 },
+    { time: '2026-11-24T01:00', aqi: null },
+    { time: '2026-11-24T02:00', aqi: 65 },
+    { time: '2026-11-24T03:00', aqi: 160 },
+    { time: '2026-11-24T04:00', aqi: 170 },
+    { time: '2026-11-31T05:00', aqi: 15 },
+    { time: '2026-11-31T06:00', aqi: 10 },
+    { time: '2026-11-24T22:00', aqi: 85 },
+    { time: '2026-11-24T23:00', aqi: 85 },
+  ];
+
+  assert.equal(findCleanerWindow(forecast, '2026-11-23T22:15'), null);
+  assert.equal(findCleanerWindow(forecast, '2026-11-23'), null);
+});
+
+test('routine uses a meaningful forecast improvement and retains sensitive group guidance', () => {
+  const time = '2026-11-23T22:15';
+  const forecast = [
+    { time: '2026-11-24T06:00', aqi: 110 },
+    { time: '2026-11-24T07:00', aqi: 125 },
+  ];
+  const plan = buildPlan({ ...delhi, aqi: 170, household: 'family', dataMode: 'live', time, forecast });
+  const littleChange = buildPlan({ ...delhi, aqi: 134, dataMode: 'live', time, forecast });
+  const stale = buildPlan({ ...delhi, dataMode: 'cached', time, forecast });
+  const sample = buildPlan({ ...delhi, dataMode: 'demo', time, forecast });
+
+  assert.match(plan.actions[0].description, /move long or strenuous activities inside/i);
+  assert.match(plan.actions[0].description, /Nov 24.*local time \(U.S. AQI 110–125\)/);
+  assert.match(plan.actions[0].description, /recheck local conditions.*sensitive groups/i);
+  assert.doesNotMatch(littleChange.actions[0].description, /forecast is lower/i);
+  assert.match(stale.summary, /AQI.*unavailable/);
+  assert.doesNotMatch(stale.actions[0].description, /forecast is lower/i);
+  assert.doesNotMatch(sample.actions[0].description, /forecast is lower/i);
+});
+
+test('an unhealthy forecast keeps optional strenuous activity indoors', () => {
+  const time = '2026-11-23T22:15';
+  const forecast = [
+    { time: '2026-11-23T23:00', aqi: 175 },
+    { time: '2026-11-24T00:00', aqi: 151 },
+    { time: '2026-11-24T01:00', aqi: 159 },
+  ];
+  const plan = buildPlan({ ...delhi, aqi: 188, household: 'community', dataMode: 'modeled', time, forecast });
+
+  assert.equal(findCleanerWindow(forecast, time), null);
+  assert.match(plan.actions[0].description, /move optional strenuous activities indoors/i);
+  assert.doesNotMatch(plan.actions[0].description, /local time/i);
+});
+
+test('the offline clean air plan adapts and explains all three actions', () => {
+  const profile = { ...delhi, household: 'community', distance: 10, habits: ['cooking'] };
+  const plan = buildPlan(profile);
+  const reply = localReply('Adapt my clean air plan for my household or community. Explain the likely impact of each choice.', profile);
+
+  assert.match(plan.actions[1].description, /shared room smoke-free/);
+  assert.match(plan.actions[1].description, /low-smoke meal/);
+  for (const [index, action] of plan.actions.entries()) {
+    assert.ok(reply.includes(`${index + 1}. ${action.title}`));
+    assert.ok(reply.includes(action.description));
+    assert.ok(reply.includes(action.impact));
+  }
 });

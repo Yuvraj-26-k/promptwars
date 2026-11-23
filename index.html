@@ -32,6 +32,8 @@
     <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></symbol>
     <symbol id="icon-send" viewBox="0 0 24 24"><path d="m21 3-6.7 18-3.7-7.6L3 9.7 21 3Zm0 0L10.6 13.4"/></symbol>
     <symbol id="icon-calendar" viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="15" rx="2"/><path d="M4 11h16M8 3v5m8-5v5"/></symbol>
+    <symbol id="icon-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5M5.7 7a7.5 7.5 0 0 1 12.2-1l2.1 3M4 15l2.1 3A7.5 7.5 0 0 0 18.3 17"/></symbol>
+    <symbol id="icon-locate" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/></symbol>
   </svg>
 
   <a class="skip-link" href="#main">Skip to dashboard</a>
@@ -59,11 +61,17 @@
           <h1 id="dashboard-title">Your air today</h1>
           <p>Local air quality and a cleaner daily routine for your household.</p>
         </div>
-        <button id="location-button" class="button location-button" type="button" aria-haspopup="dialog" aria-controls="location-dialog">
-          <svg class="icon location-pin" aria-hidden="true"><use href="#icon-pin"></use></svg>
-          <span id="current-city">Delhi, India</span>
-          <svg class="icon location-chevron" aria-hidden="true"><use href="#icon-chevron"></use></svg>
-        </button>
+        <div class="dashboard-controls">
+          <button id="location-button" class="button location-button" type="button" aria-haspopup="dialog" aria-controls="location-dialog">
+            <svg class="icon location-pin" aria-hidden="true"><use href="#icon-pin"></use></svg>
+            <span id="current-city">Delhi, India</span>
+            <svg class="icon location-chevron" aria-hidden="true"><use href="#icon-chevron"></use></svg>
+          </button>
+          <button id="refresh-air" class="button button-secondary" type="button">
+            <svg class="icon refresh-icon" aria-hidden="true"><use href="#icon-refresh"></use></svg>
+            <span id="refresh-label">Refresh</span>
+          </button>
+        </div>
       </div>
 
       <div class="overview-grid">
@@ -96,6 +104,11 @@
           <div class="forecast-tip"><svg class="icon" aria-hidden="true"><use href="#icon-info"></use></svg><p id="forecast-note">Checking the hourly forecast.</p></div>
         </article>
       </div>
+      <div id="air-feedback" class="air-feedback" hidden>
+        <svg class="icon" aria-hidden="true"><use href="#icon-info"></use></svg>
+        <p id="air-feedback-text" role="status"></p>
+        <button id="air-retry" class="button button-secondary" type="button">Try again</button>
+      </div>
     </section>
 
     <section id="daily-plan" class="daily-plan" aria-labelledby="plan-title">
@@ -104,9 +117,14 @@
           <h2 id="plan-title">Your clean air plan</h2>
           <p id="plan-summary" aria-live="polite">Three practical choices based on your household and today’s air.</p>
         </div>
-        <button id="share-button" class="button button-secondary" type="button">
-          <svg class="icon" aria-hidden="true"><use href="#icon-share"></use></svg> Share plan
-        </button>
+        <div class="plan-controls">
+          <button id="adapt-plan" class="button button-assistant" type="button" aria-haspopup="dialog" aria-controls="chat-dialog" data-prompt="Adapt my clean air plan for my household or community. Give me one practical daily routine, one indoor air improvement, and one sustainable alternative. Explain the likely impact of each choice.">
+            <svg class="icon" aria-hidden="true"><use href="#icon-sparkles"></use></svg> <span id="adapt-plan-label">Adapt my plan</span>
+          </button>
+          <button id="share-button" class="button button-secondary" type="button">
+            <svg class="icon" aria-hidden="true"><use href="#icon-share"></use></svg> Share plan
+          </button>
+        </div>
       </div>
 
       <form id="planner-form" class="planner-form" aria-label="Personalize your clean air plan">
@@ -135,6 +153,16 @@
           <span class="distance-wrap"><input name="distance" type="number" min="0" max="100" step="0.1" value="8" inputmode="decimal" required><span aria-hidden="true">km</span></span>
           <span class="sr-only">in kilometers</span>
         </label>
+        <details class="routine-options">
+          <summary><span>Household routines</span><svg class="icon" aria-hidden="true"><use href="#icon-chevron"></use></svg></summary>
+          <fieldset class="habit-fields">
+            <legend class="sr-only">What applies to your household?</legend>
+            <label><input type="checkbox" name="habits" value="cooking"> Cook at home</label>
+            <label><input type="checkbox" name="habits" value="purifier"> Have an air purifier</label>
+            <label><input type="checkbox" name="habits" value="school"> School drop-off or pickup</label>
+            <label><input type="checkbox" name="habits" value="outdoor"> Exercise outdoors</label>
+          </fieldset>
+        </details>
         <button class="button button-primary update-button" type="submit">Update plan</button>
       </form>
 
@@ -178,6 +206,16 @@
       <button class="button chip" type="button" data-city="Lahore">Lahore</button>
       <button class="button chip" type="button" data-city="Dhaka">Dhaka</button>
     </div>
+    <div class="location-actions">
+      <div class="location-device">
+        <button id="use-location" class="button button-secondary" type="button" aria-describedby="location-privacy">
+          <svg class="icon" aria-hidden="true"><use href="#icon-locate"></use></svg>
+          Use my location
+        </button>
+        <p id="location-privacy">Location is used to fetch nearby air estimates.</p>
+      </div>
+      <button id="demo-toggle" class="button chip" type="button">Try Delhi sample</button>
+    </div>
   </dialog>
 
   <dialog id="chat-dialog" class="dialog chat-dialog" aria-labelledby="chat-title">
@@ -186,6 +224,7 @@
       <div><h2 id="chat-title">ClearSkies assistant</h2><p id="chat-mode" role="status">Assistant</p></div>
       <button id="chat-close" class="button icon-button" aria-label="Close assistant" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-close"></use></svg></button>
     </div>
+    <p id="chat-data-note" class="chat-data-note">The built-in guide uses your current plan.</p>
     <div id="chat-messages" class="chat-messages" role="log" aria-live="polite" aria-label="Conversation">
       <div class="chat-message chat-message--assistant">Ask me about going outside, keeping indoor air cleaner, or choosing a lower-emission trip.</div>
     </div>
@@ -195,7 +234,7 @@
       <button class="button chip" type="button" data-prompt="What is a lower-emission alternative to my usual commute?">Cleaner commute</button>
     </div>
     <form id="chat-form" class="chat-form">
-      <label class="sr-only" for="chat-question">Ask a question</label><input id="chat-question" name="question" maxlength="800" placeholder="Ask a clean air question…" autocomplete="off" required>
+      <label class="sr-only" for="chat-question">Ask a question</label><input id="chat-question" name="question" maxlength="800" placeholder="Ask a clean air question…" autocomplete="off" aria-describedby="chat-data-note" required>
       <button class="button button-primary icon-button" type="submit" aria-label="Send question"><svg class="icon" aria-hidden="true"><use href="#icon-send"></use></svg></button>
     </form>
   </dialog>

@@ -1,4 +1,4 @@
-import { buildPlan, localReply } from './plan.js';
+import { buildPlan, findCleanerWindow, localReply } from './plan.js';
 
 const cities = [
   { name: 'Delhi', region: 'Delhi', country: 'India', latitude: 28.61, longitude: 77.23, timezone: 'Asia/Kolkata' },
@@ -27,6 +27,7 @@ const demoAqi = [178, 181, 185, 181, 173, 162, 155, 146, 139, 132, 128, 125, 129
 const demoAir = {
   aqi: 178,
   pm25: 94,
+  time: '2026-01-08T07:00',
   timezone: 'Asia/Kolkata',
   forecast: demoAqi.map((aqi, index) => ({
     time: new Date(Date.UTC(2026, 0, 8, 7 + index)).toISOString().slice(0, 16),
@@ -38,6 +39,10 @@ const householdOptions = ['family', 'sensitive', 'community', 'individual'];
 const commuteOptions = ['car', 'transit', 'walk', 'bike', 'remote'];
 const habitOptions = ['cooking', 'purifier', 'school', 'outdoor'];
 const preferencesKey = 'airsafe.preferences.v1';
+const airCacheKey = 'clearskies.last-air.v1';
+const refreshInterval = 10 * 60 * 1000;
+const recentEstimateAge = 2 * 60 * 60 * 1000;
+const snapshotAge = 6 * 60 * 60 * 1000;
 
 const get = (id) => document.getElementById(id);
 const planner = get('planner-form');
@@ -48,18 +53,26 @@ const chatQuestion = get('chat-question');
 const chatMessages = get('chat-messages');
 const chatMode = get('chat-mode');
 const chatForm = get('chat-form');
+const chatGreeting = chatMessages?.firstElementChild;
 
 const saved = readPreferences();
-let city = isCity(saved.city) ? saved.city : cities[0];
+let rememberedCity = isCity(saved.city) ? saved.city : cities[0];
+let liveLocation = rememberedCity;
+let city = liveLocation;
 let settings = normalizeSettings(saved.settings);
 let air = null;
 let airMode = 'unavailable';
+let airLocation;
+let lastAirAttempt = 0;
 let latestPlan;
 let airRequest;
 let cityRequest;
 let cityTimer;
 let toastTimer;
-let chatBusy = false;
+let geolocationAttempt = 0;
+let chatRequest;
+let chatStatus;
+let chatStatusRequest;
 const conversation = [];
 
 function readPreferences() {
@@ -73,7 +86,7 @@ function readPreferences() {
 
 function savePreferences() {
   try {
-    window.localStorage.setItem(preferencesKey, JSON.stringify({ city, settings }));
+    window.localStorage.setItem(preferencesKey, JSON.stringify({ city: rememberedCity, settings }));
   } catch {
     // The dashboard remains usable without persistent storage.
   }
@@ -101,14 +114,68 @@ function displayCity(place = city) {
 }
 
 function profile() {
+  const usableAir = ['live', 'demo'].includes(airMode) ? air : null;
   return {
     ...settings,
     city: displayCity(),
-    aqi: Number.isFinite(air?.aqi) ? Math.round(air.aqi) : null,
-    pm25: Number.isFinite(air?.pm25) ? air.pm25 : null,
+    aqi: usableAir ? Math.round(usableAir.aqi) : null,
+    pm25: Number.isFinite(usableAir?.pm25) ? usableAir.pm25 : null,
     dataMode: airMode,
+    time: airMode === 'live' ? air.time : undefined,
     forecast: airMode === 'live' ? air.forecast : [],
   };
+}
+
+function modelTimeAtLocation(data, date) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: data.timezone, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  return Date.parse(`${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}Z`);
+}
+
+function isFreshAir(data) {
+  if (!data.timezone || Date.now() - Date.parse(data.fetchedAt) > recentEstimateAge) return false;
+  try {
+    const age = modelTimeAtLocation(data, new Date()) - Date.parse(`${data.time}Z`);
+    return age >= -15 * 60 * 1000 && age <= recentEstimateAge;
+  } catch {
+    return false;
+  }
+}
+
+function validAir(data) {
+  return Number.isFinite(data?.aqi) && data.aqi >= 0 &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(data.time) && Number.isFinite(Date.parse(`${data.time}Z`));
+}
+
+function recentSnapshot(data) {
+  const age = Date.now() - Date.parse(data?.fetchedAt);
+  return validAir(data) && age >= -5 * 60 * 1000 && age <= snapshotAge;
+}
+
+function locationKey(place) {
+  return `${place.latitude},${place.longitude}`;
+}
+
+function readSnapshot(place) {
+  if (place.deviceLocation) return null;
+  try {
+    const saved = JSON.parse(window.sessionStorage.getItem(airCacheKey));
+    return saved?.location === locationKey(place) && recentSnapshot(saved.data) ? saved.data : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveSnapshot(place, data) {
+  if (place.deviceLocation) return;
+  try {
+    window.sessionStorage.setItem(airCacheKey, JSON.stringify({ location: locationKey(place), data }));
+  } catch {
+    // The current reading remains available without storage access.
+  }
 }
 
 function setText(id, value) {
@@ -146,14 +213,14 @@ function relativeAqiPosition(aqi) {
   return ((levelIndex + Math.max(0, (aqi - lower) / (upper - lower))) / aqiLevels.length) * 100;
 }
 
-function localClock(time, showDate = false) {
+function localClock(time, showDate = false, showMinutes = showDate) {
   if (typeof time !== 'string' || !time) return '';
   const localTime = new Date(`${time.slice(0, 16)}:00Z`);
   if (!Number.isFinite(localTime.getTime())) return '';
   return new Intl.DateTimeFormat(undefined, {
     ...(showDate ? { month: 'short', day: 'numeric' } : {}),
     hour: 'numeric',
-    ...(showDate ? { minute: '2-digit' } : {}),
+    ...(showMinutes ? { minute: '2-digit' } : {}),
     timeZone: 'UTC',
   }).format(localTime);
 }
@@ -163,7 +230,8 @@ function aqiCategory(aqi) {
 }
 
 function renderAir(loading = false) {
-  const { aqi, pm25 } = profile();
+  const aqi = air ? Math.round(air.aqi) : null;
+  const pm25 = Number.isFinite(air?.pm25) ? air.pm25 : null;
   const category = aqi === null ? null : aqiCategory(aqi);
   const label = get('aqi-label');
   const marker = get('aqi-marker');
@@ -180,14 +248,14 @@ function renderAir(loading = false) {
 
   const source = get('air-source');
   if (source) source.dataset.mode = airMode;
-  if (airMode === 'live') {
+  if (airMode === 'live' || airMode === 'cached') {
     const updated = localClock(air.time, true);
-    setText('air-source', 'Model estimate · Open-Meteo');
-    setText('air-updated', updated ? `${updated} local time` : 'Current model estimate');
-    setText('air-description', category.description);
+    setText('air-source', airMode === 'live' ? 'Model estimate · Open-Meteo' : 'Last available estimate');
+    setText('air-updated', updated ? `${updated} local time` : 'Open-Meteo model estimate');
+    setText('air-description', airMode === 'live' ? category.description : 'This reading may be out of date. Check local advisories before heading out.');
   } else if (airMode === 'demo') {
-    setText('air-source', 'Demo data');
-    setText('air-updated', loading ? 'Checking live data' : 'Sample for Delhi');
+    setText('air-source', 'Delhi sample');
+    setText('air-updated', 'Illustrative conditions');
     setText('air-description', category.description);
   } else {
     setText('air-source', loading ? 'Checking live data' : 'No live data');
@@ -196,18 +264,45 @@ function renderAir(loading = false) {
       ? 'Looking up current conditions for this location.'
       : 'Current conditions are unavailable. Check your local air-quality advisory before making outdoor plans.');
   }
+  renderAirFeedback(loading);
   renderForecast(loading);
+}
+
+function renderAirFeedback(loading) {
+  const feedback = get('air-feedback');
+  const retry = get('air-retry');
+  const refresh = get('refresh-air');
+  const sample = airMode === 'demo';
+  if (refresh) {
+    refresh.disabled = loading;
+    refresh.setAttribute('aria-busy', String(loading));
+    setText('refresh-label', loading ? 'Refreshing…' : sample ? 'Return to live' : 'Refresh air');
+  }
+
+  let message = '';
+  if (sample) message = 'You’re viewing a sample scenario. Return to live for estimates at your selected location.';
+  if (airMode === 'cached') message = loading
+    ? 'Checking for a fresh estimate. The value shown is an earlier reading.'
+    : 'A current estimate is unavailable. Your plan uses general guidance until fresh data returns.';
+  if (airMode === 'unavailable' && !loading) message = 'Live estimates are unavailable. Try again or choose another location.';
+  if (feedback) feedback.hidden = !message;
+  setText('air-feedback-text', message);
+  if (retry) {
+    retry.hidden = loading;
+    retry.textContent = sample ? 'Return to live' : 'Try again';
+  }
+  setText('demo-toggle', sample ? 'Return to live air data' : 'Try Delhi sample');
 }
 
 function renderForecast(loading) {
   const container = get('forecast-chart');
   if (!container) return;
   container.replaceChildren();
-  const points = (Array.isArray(air?.forecast) ? air.forecast : [])
+  const points = (airMode !== 'cached' && Array.isArray(air?.forecast) ? air.forecast : [])
     .filter((point) => point && Number.isFinite(point.aqi) && typeof point.time === 'string').slice(0, 24);
   if (points.length < 2) {
     container.append(makeElement('div', 'forecast-empty', loading ? 'Loading forecast…' : 'Forecast unavailable'));
-    setText('forecast-note', '');
+    setText('forecast-note', airMode === 'cached' && !loading ? 'A fresh estimate is needed for forecast guidance.' : '');
     return;
   }
 
@@ -254,10 +349,21 @@ function renderForecast(loading) {
   for (const index of indices) times.append(makeElement('span', '', localClock(points[index].time)));
   container.append(times);
 
-  const lowest = points.reduce((best, point) => point.aqi < best.aqi ? point : best, points[0]);
-  const hour = localClock(lowest.time);
-  const lowLabel = hour ? `Lowest AQI around ${hour}` : 'Hourly U.S. AQI';
-  setText('forecast-note', airMode === 'demo' ? `Sample forecast · ${lowLabel}` : `${lowLabel} local time`);
+  const range = `${Math.round(Math.min(...values))}–${Math.round(Math.max(...values))}`;
+  if (airMode === 'demo') {
+    setText('forecast-note', `Sample forecast · AQI ${range}`);
+  } else {
+    const window = findCleanerWindow(points, air.time);
+    if (window && window.maxAqi + 15 <= air.aqi) {
+      const start = localClock(window.start, window.start.slice(0, 10) !== air.time.slice(0, 10), false);
+      const end = localClock(window.end, window.end.slice(0, 10) !== window.start.slice(0, 10), false);
+      setText('forecast-note', `Lower-AQI window · ${start} to ${end} local time · up to ${Math.round(window.maxAqi)}`);
+    } else if (values.every((value) => value >= 151)) {
+      setText('forecast-note', 'The forecast stays at unhealthy levels.');
+    } else {
+      setText('forecast-note', `Forecast AQI ${range} · all times local`);
+    }
+  }
 }
 
 function renderPlan() {
@@ -330,12 +436,14 @@ async function loadAir() {
   airRequest?.abort();
   const request = new AbortController();
   airRequest = request;
+  lastAirAttempt = Date.now();
 
   const selectedCity = city;
-  const isDelhi = selectedCity.name.toLowerCase() === 'delhi' && Math.abs(selectedCity.latitude - 28.61) < 0.5 &&
-    Math.abs(selectedCity.longitude - 77.23) < 0.5;
-  airMode = isDelhi ? 'demo' : 'unavailable';
-  air = isDelhi ? demoAir : null;
+  const prior = airLocation === selectedCity && recentSnapshot(air) ? air : readSnapshot(selectedCity);
+  const stillLive = airMode === 'live' && prior === air && air && isFreshAir(air);
+  air = prior;
+  airMode = stillLive ? 'live' : prior ? 'cached' : 'unavailable';
+  airLocation = selectedCity;
   renderAir(true);
   renderPlan();
 
@@ -343,14 +451,46 @@ async function loadAir() {
   try {
     const data = await api(`/api/air?${query}`, { signal: request.signal });
     if (request.signal.aborted) return;
-    if (!Number.isFinite(data?.aqi) || data.aqi < 0) throw new Error('Air-quality data is unavailable.');
-    air = data;
-    airMode = 'live';
+    if (!validAir(data)) throw new Error('Air-quality data is unavailable.');
+    const fetchedAt = Number.isFinite(Date.parse(data.fetchedAt)) ? data.fetchedAt : new Date().toISOString();
+    const reading = { ...data, fetchedAt };
+    if (!recentSnapshot(reading)) throw new Error('Air-quality data is out of date.');
+    air = reading;
+    airMode = isFreshAir(reading) ? 'live' : 'cached';
+    saveSnapshot(selectedCity, reading);
   } catch {
     if (request.signal.aborted) return;
+    air = recentSnapshot(prior) ? prior : null;
+    airMode = air ? 'cached' : 'unavailable';
+  } finally {
+    if (airRequest === request) airRequest = undefined;
   }
   renderAir();
   renderPlan();
+}
+
+function refreshAir() {
+  if (airMode === 'demo') {
+    city = liveLocation;
+    resetChat();
+  }
+  return loadAir();
+}
+
+function initializeAirRefresh() {
+  for (const id of ['refresh-air', 'air-retry']) {
+    get(id)?.addEventListener('click', () => void refreshAir());
+  }
+  function refreshIfDue() {
+    if (!document.hidden && !airRequest && airMode !== 'demo' && Date.now() - lastAirAttempt >= refreshInterval) {
+      void loadAir();
+    }
+  }
+  document.addEventListener('visibilitychange', refreshIfDue);
+  window.addEventListener('online', () => {
+    if (!document.hidden && !airRequest && airMode !== 'demo') void loadAir();
+  });
+  window.setInterval(refreshIfDue, refreshInterval);
 }
 
 function showDialog(dialog, control) {
@@ -361,10 +501,67 @@ function showDialog(dialog, control) {
 function useCity(place) {
   if (!isCity(place)) return;
   city = place;
-  savePreferences();
+  liveLocation = place;
+  if (!place.deviceLocation) {
+    rememberedCity = place;
+    savePreferences();
+  }
+  resetChat();
   locationDialog?.close();
   void loadAir();
   showToast(`Location set to ${displayCity()}.`);
+}
+
+function toggleSample() {
+  locationDialog?.close();
+  if (airMode === 'demo') {
+    void refreshAir();
+    return;
+  }
+  airRequest?.abort();
+  airRequest = undefined;
+  city = cities[0];
+  airLocation = undefined;
+  air = demoAir;
+  airMode = 'demo';
+  resetChat();
+  renderAir();
+  renderPlan();
+}
+
+function useDeviceLocation() {
+  const button = get('use-location');
+  if (!navigator.geolocation) {
+    setText('location-status', 'Device location is unavailable here. Search for a nearby city.');
+    return;
+  }
+
+  const attempt = ++geolocationAttempt;
+  cityRequest?.abort();
+  window.clearTimeout(cityTimer);
+  if (button) button.disabled = true;
+  setText('location-status', 'Waiting for location permission…');
+
+  function acceptResult() {
+    if (attempt !== geolocationAttempt || !locationDialog?.open) return false;
+    if (button) button.disabled = false;
+    return true;
+  }
+
+  navigator.geolocation.getCurrentPosition(({ coords }) => {
+    if (!acceptResult()) return;
+    useCity({
+      name: 'Near your location',
+      latitude: Number(coords.latitude.toFixed(2)),
+      longitude: Number(coords.longitude.toFixed(2)),
+      deviceLocation: true,
+    });
+  }, (error) => {
+    if (!acceptResult()) return;
+    setText('location-status', error.code === 1
+      ? 'Location permission was denied. Search for a city instead.'
+      : 'Could not get your location. Try again or search for a city.');
+  }, { enableHighAccuracy: false, maximumAge: 5 * 60 * 1000, timeout: 10000 });
 }
 
 function localCities(query) {
@@ -425,7 +622,12 @@ function initializeLocation() {
     showDialog(locationDialog, citySearch);
   });
   get('location-close')?.addEventListener('click', () => locationDialog?.close());
+  const deviceLocation = get('use-location');
+  deviceLocation?.addEventListener('click', useDeviceLocation);
+  get('demo-toggle')?.addEventListener('click', toggleSample);
   locationDialog?.addEventListener('close', () => {
+    geolocationAttempt++;
+    if (deviceLocation) deviceLocation.disabled = false;
     cityRequest?.abort();
     window.clearTimeout(cityTimer);
     if (citySearch) citySearch.value = '';
@@ -461,42 +663,91 @@ function addMessage(role, text) {
   return message;
 }
 
+function describeChatStatus() {
+  if (!chatStatus) {
+    setText('chat-mode', 'Checking assistant setup…');
+    return;
+  }
+
+  const provider = chatStatus.provider === 'gemini' ? 'Gemini' : 'OpenAI';
+  setText('adapt-plan-label', chatStatus.enabled ? 'Ask AI to adapt plan' : 'Adapt my plan');
+  setText('chat-mode', chatStatus.enabled ? `${provider} ready` : 'Built-in guide');
+  setText('chat-data-note', chatStatus.enabled
+    ? `Your question, recent messages, city label, and plan context are sent to ${provider}.`
+    : 'The built-in guide uses your current plan. Generative replies require an API key in the server setup.');
+  if (chatMode) chatMode.dataset.mode = chatStatus.enabled ? 'ai' : 'local';
+}
+
+function loadChatStatus() {
+  if (chatStatusRequest) return chatStatusRequest;
+  chatStatusRequest = api('/api/status', {}, 4000).then(({ chat }) => {
+    const provider = ['gemini', 'openai'].includes(chat?.provider) ? chat.provider : null;
+    chatStatus = { enabled: Boolean(provider && chat.enabled === true), provider };
+  }).catch(() => {
+    chatStatus = { enabled: false, provider: null };
+  }).finally(() => {
+    chatStatusRequest = undefined;
+    if (!chatRequest) describeChatStatus();
+  });
+  return chatStatusRequest;
+}
+
+function resetChat() {
+  chatRequest?.abort();
+  chatRequest = undefined;
+  conversation.length = 0;
+  if (chatMessages) {
+    chatMessages.replaceChildren(...(chatGreeting ? [chatGreeting] : []));
+    chatMessages.setAttribute('aria-busy', 'false');
+  }
+  if (chatQuestion) chatQuestion.value = '';
+  const sendButton = chatForm?.querySelector('[type="submit"]');
+  if (sendButton) sendButton.disabled = false;
+  describeChatStatus();
+}
+
 async function ask(questionValue) {
   const question = questionValue.trim().slice(0, 1000);
-  if (!question || chatBusy || !chatQuestion) return;
-  chatBusy = true;
+  if (!question || chatRequest || !chatQuestion) return;
+  const request = new AbortController();
+  chatRequest = request;
   const sendButton = chatForm?.querySelector('[type="submit"]');
   if (sendButton) sendButton.disabled = true;
   chatMessages?.setAttribute('aria-busy', 'true');
   chatQuestion.value = '';
   addMessage('user', question);
-  const response = addMessage('assistant', 'Thinking…');
+  const response = addMessage('assistant', 'Preparing your reply…');
   const context = profile();
-  const plan = latestPlan;
-  let answer;
-  let mode;
-  try {
-    const result = await api('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question, profile: context, plan, history: conversation }),
-    }, 24000);
-    if (typeof result?.reply !== 'string' || !result.reply.trim()) throw new Error('No assistant reply.');
-    answer = result.reply;
-    mode = result.mode;
-  } catch {
-    answer = localReply(question, context);
-    mode = 'local';
-  } finally {
-    chatBusy = false;
-    if (sendButton) sendButton.disabled = false;
+  if (!chatStatus || chatStatusRequest) await loadChatStatus();
+  if (request.signal.aborted) return;
+
+  let result;
+  if (chatStatus.enabled) {
+    try {
+      result = await api('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question, profile: context, history: conversation }),
+        signal: request.signal,
+      }, 24000);
+    } catch {
+      result = { reason: 'provider_unavailable' };
+    }
   }
+  if (request.signal.aborted) return;
+
+  const answer = typeof result?.reply === 'string' && result.reply.trim() ? result.reply : localReply(question, context);
+  const isAi = result?.mode === 'ai';
   response.textContent = answer;
   conversation.push({ role: 'user', content: question }, { role: 'assistant', content: answer });
   if (conversation.length > 6) conversation.splice(0, conversation.length - 6);
+  chatRequest = undefined;
+  if (sendButton) sendButton.disabled = false;
   if (chatMode) {
-    chatMode.textContent = mode === 'ai' ? 'AI response' : 'Offline guide';
-    chatMode.dataset.mode = mode === 'ai' ? 'ai' : 'local';
+    const provider = result?.provider === 'gemini' ? 'Gemini' : 'OpenAI';
+    chatMode.textContent = isAi ? `AI reply · ${provider}` : result?.reason === 'provider_unavailable'
+      ? 'AI unavailable · built-in guide' : 'Built-in guide';
+    chatMode.dataset.mode = isAi ? 'ai' : 'local';
   }
   if (chatMessages) {
     chatMessages.setAttribute('aria-busy', 'false');
@@ -505,12 +756,16 @@ async function ask(questionValue) {
 }
 
 function initializeChat() {
+  function openChat() {
+    showDialog(chatDialog, chatQuestion);
+    void loadChatStatus();
+  }
   document.querySelectorAll('[data-open-chat]').forEach((button) => {
-    button.addEventListener('click', () => showDialog(chatDialog, chatQuestion));
+    button.addEventListener('click', openChat);
   });
   document.querySelectorAll('[data-prompt]').forEach((button) => {
     button.addEventListener('click', () => {
-      showDialog(chatDialog, chatQuestion);
+      openChat();
       void ask(button.dataset.prompt || button.textContent);
     });
   });
@@ -519,6 +774,8 @@ function initializeChat() {
     event.preventDefault();
     void ask(chatQuestion?.value || '');
   });
+  describeChatStatus();
+  void loadChatStatus();
 }
 
 function showToast(text) {
@@ -532,10 +789,10 @@ function showToast(text) {
 
 function shareText() {
   const context = profile();
-  const airStatus = context.aqi === null ? 'AQI unavailable' : `U.S. AQI ${context.aqi}${airMode === 'demo' ? ' (sample data)' : ' (model estimate)'}`;
   const title = `Clean-air plan for ${context.city}`;
-  const actions = latestPlan.actions.map((action) => `${action.title}: ${action.description} Impact: ${action.impact}`);
-  return [title, airStatus, latestPlan.summary, ...actions, latestPlan.footnote].filter(Boolean).join('\n\n');
+  const timestamp = airMode === 'live' ? `Open-Meteo estimate for ${localClock(air.time, true)} local time.` : '';
+  const actions = latestPlan.actions.map((action) => `${action.title}\n${action.description}\n${action.impact}`);
+  return [title, timestamp, latestPlan.summary, ...actions, latestPlan.footnote].filter(Boolean).join('\n\n');
 }
 
 async function sharePlan() {
@@ -576,6 +833,7 @@ async function sharePlan() {
 
 initializeForm();
 initializeLocation();
+initializeAirRefresh();
 initializeChat();
 get('share-button')?.addEventListener('click', () => void sharePlan());
 void loadAir();

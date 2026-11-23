@@ -18,6 +18,12 @@ const householdActivities = {
 };
 
 const formatNumber = new Intl.NumberFormat('en', { maximumFractionDigits: 1 });
+const oneHour = 60 * 60 * 1000;
+const forecastHorizon = 24 * oneHour;
+const meaningfulAqiChange = 15;
+const unavailableModes = new Set(['cached', 'stale', 'unavailable']);
+const formatDate = new Intl.DateTimeFormat('en', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
+const formatHour = new Intl.DateTimeFormat('en', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
 
 function nonnegativeNumber(value) {
   if (typeof value !== 'number' && typeof value !== 'string') return null;
@@ -25,6 +31,61 @@ function nonnegativeNumber(value) {
 
   const number = Number(value);
   return Number.isFinite(number) && number >= 0 ? number : null;
+}
+
+// Open-Meteo's local timestamps have no offset. Use a UTC clock for calendar arithmetic
+// so these comparisons and labels never depend on the viewer's time zone.
+function localTimeMilliseconds(time) {
+  if (typeof time !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(time)) return NaN;
+  const milliseconds = Date.parse(`${time}Z`);
+  if (!Number.isFinite(milliseconds) || toLocalIso(milliseconds) !== time) return NaN;
+  return milliseconds;
+}
+
+function toLocalIso(milliseconds) {
+  return new Date(milliseconds).toISOString().slice(0, 16);
+}
+
+export function findCleanerWindow(forecast, time) {
+  const reference = localTimeMilliseconds(time);
+  if (!Array.isArray(forecast) || !Number.isFinite(reference)) return null;
+
+  const hours = new Map();
+  for (const point of forecast) {
+    const timestamp = localTimeMilliseconds(point?.time);
+    const value = nonnegativeNumber(point?.aqi);
+    if (value === null || !Number.isFinite(timestamp) || timestamp % oneHour !== 0 ||
+        timestamp <= reference || timestamp + oneHour > reference + forecastHorizon) continue;
+
+    // Treat repeated clock hours conservatively, for example around a clock change.
+    hours.set(timestamp, Math.max(hours.get(timestamp) ?? 0, Math.round(value)));
+  }
+
+  const timeline = [...hours.keys()].sort((left, right) => left - right);
+  let best;
+  for (const start of timeline) {
+    const maxAqi = Math.max(hours.get(start), hours.get(start + oneHour) ?? Infinity);
+    if (maxAqi <= 150 && (!best || maxAqi < best.maxAqi)) {
+      best = { start, end: start + 2 * oneHour, minAqi: Math.min(hours.get(start), hours.get(start + oneHour)), maxAqi };
+    }
+  }
+  if (!best) return null;
+
+  while (hours.has(best.end) && hours.get(best.end) <= best.maxAqi) {
+    best.minAqi = Math.min(best.minAqi, hours.get(best.end));
+    best.end += oneHour;
+  }
+
+  return { ...best, start: toLocalIso(best.start), end: toLocalIso(best.end) };
+}
+
+function windowDescription({ start, end, minAqi, maxAqi }) {
+  const startTime = localTimeMilliseconds(start);
+  const endTime = localTimeMilliseconds(end);
+  const endDay = start.slice(0, 10) === end.slice(0, 10) ? '' : `${formatDate.format(endTime)}, `;
+  const range = minAqi === maxAqi ? maxAqi : `${minAqi}–${maxAqi}`;
+  const caution = maxAqi > 100 ? ' Sensitive groups should keep outdoor activity shorter and less strenuous during that window.' : '';
+  return `If you can reschedule, the forecast is lower from ${formatDate.format(startTime)}, ${formatHour.format(startTime)} to ${endDay}${formatHour.format(endTime)} local time (U.S. AQI ${range}). Recheck local conditions before heading out.${caution}`;
 }
 
 function describeAvoidedDrive(distance) {
@@ -40,7 +101,7 @@ function describeAvoidedDrive(distance) {
   return `Avoiding the ${formatNumber.format(roundTrip)} km gasoline-car round trip saves ${amount} kg of tailpipe CO₂ from that car.`;
 }
 
-function routineAction(aqi, household, habits) {
+function routineAction(aqi, household, commute, habits, cleanerWindow) {
   const sensitive = household === 'family' || household === 'sensitive';
   const activity = habits.includes('school') ? 'outdoor play or practice' : householdActivities[household];
   const exercise = habits.includes('outdoor');
@@ -68,7 +129,7 @@ function routineAction(aqi, household, habits) {
     title = `Bring ${activity} indoors`;
     description = sensitive
       ? 'Move long or strenuous activities inside. Keep essential outdoor time shorter and check the AQI again before leaving.'
-      : 'Shorten outdoor sessions, lower the intensity, and take more breaks. Move longer sessions indoors if you can.';
+      : 'Move optional strenuous activities indoors. Shorten essential outdoor sessions, lower the intensity, and take more breaks.';
     impact = 'Shorter or gentler outdoor activity can reduce the amount of polluted air you breathe in.';
   } else if (aqi === null || aqi >= 101) {
     title = 'Check before heading out';
@@ -80,6 +141,15 @@ function routineAction(aqi, household, habits) {
     title = exercise ? 'Choose a lower-traffic route' : 'Use the cleaner hours';
     description = `Plan ${activity} away from busy roads. Check again before a long session because conditions can change through the day.`;
     impact = 'Staying farther from traffic can reduce exposure to nearby exhaust and particles.';
+  }
+
+  if (cleanerWindow) {
+    if (aqi <= 150) title = 'Plan around lower AQI';
+    description += ` ${windowDescription(cleanerWindow)}`;
+  }
+  if (commute === 'car' && habits.includes('school')) {
+    description += ' If you drive for school pickup, switch the engine off while safely parked and waiting.';
+    impact += ' Less idling cuts fuel use and exhaust around the school.';
   }
 
   return { category: 'Daily routine', title, description, impact, icon: 'sun' };
@@ -98,13 +168,15 @@ function indoorAction(aqi, household, habits) {
     const ventilation = highPollution
       ? 'Keep windows closed during the pollution spike if you can keep the room comfortable, then air it out when outdoor conditions improve.'
       : 'Keep the air intake clear and replace the filter on schedule.';
-    const filtration = hasPurifier
+    const sourceControl = hasPurifier
       ? `Run your air purifier in the ${room}.`
-      : `Use a room-sized HEPA purifier in the ${room} if available.`;
-    description = `${filtration} ${ventilation}`;
-    impact = highPollution
-      ? 'Particle filtration removes airborne particles, and closing windows during spikes limits how much comes inside.'
-      : 'Running a correctly sized filter can lower the concentration of fine particles in that room.';
+      : `Keep the ${room} smoke-free by skipping candles, incense, and indoor smoking.`;
+    description = `${sourceControl} ${ventilation}`;
+    if (hasPurifier) {
+      impact = 'Running a correctly sized fine-particle filter can lower airborne particles in that room.';
+    } else {
+      impact = 'Reducing indoor smoke cuts particles at the source. Closing windows during spikes limits how many outdoor particles come inside.';
+    }
     if (highPollution && habits.includes('cooking')) {
       description += ' Choose a low-smoke meal if you’re cooking.';
     }
@@ -163,15 +235,18 @@ function swapAction(aqi, household, commute, distance) {
   return { category: 'Sustainable swap', title, description, impact, icon };
 }
 
-export function buildPlan({ city, aqi, pm25, household, commute, distance, habits, dataMode, sample } = {}) {
+export function buildPlan({ city, aqi, pm25, household, commute, distance, habits, dataMode, sample, forecast, time } = {}) {
   const cityName = typeof city === 'string' && city.trim() ? city.trim() : 'your area';
-  const rawAqi = nonnegativeNumber(aqi);
+  const isSample = dataMode === 'demo' || sample === true;
+  const rawAqi = unavailableModes.has(dataMode) ? null : nonnegativeNumber(aqi);
   const currentAqi = rawAqi === null ? null : Math.round(rawAqi);
   const particles = nonnegativeNumber(pm25);
   const group = Object.hasOwn(householdActivities, household) ? household : 'individual';
   const selectedHabits = Array.isArray(habits) ? habits : [];
   const level = currentAqi === null ? null : categories.find(({ max }) => currentAqi <= max);
-  const conditions = dataMode === 'demo' || sample === true ? `Sample conditions for ${cityName}` : `Conditions for ${cityName}`;
+  const conditions = isSample ? `Sample conditions for ${cityName}` : `Modeled conditions for ${cityName}`;
+  const window = !isSample && currentAqi >= 101 ? findCleanerWindow(forecast, time) : null;
+  const cleanerWindow = window && currentAqi - window.maxAqi >= meaningfulAqiChange ? window : null;
   const summary = level
     ? `${conditions} show a U.S. AQI of ${formatNumber.format(currentAqi)} (${level.name})${particles === null ? '' : `, with PM₂.₅ at ${formatNumber.format(particles)} µg/m³`}. Use these steps to limit exposure and cut avoidable emissions.`
     : `The AQI for ${cityName} is unavailable. Check local air quality before outdoor activity and use these steps when pollution rises.`;
@@ -180,7 +255,7 @@ export function buildPlan({ city, aqi, pm25, household, commute, distance, habit
     headline: level?.headline ?? 'Start with a local air check',
     summary,
     actions: [
-      routineAction(currentAqi, group, selectedHabits),
+      routineAction(currentAqi, group, commute, selectedHabits, cleanerWindow),
       indoorAction(currentAqi, group, selectedHabits),
       swapAction(currentAqi, group, commute, nonnegativeNumber(distance)),
     ],
@@ -192,10 +267,15 @@ export function localReply(question, profile) {
   const topic = typeof question === 'string' ? question.toLowerCase() : '';
   const plan = buildPlan(profile);
   const [routine, indoor, swap] = plan.actions;
-  const aqi = nonnegativeNumber(profile?.aqi);
+  const aqi = unavailableModes.has(profile?.dataMode) ? null : nonnegativeNumber(profile?.aqi);
 
   if (/\b(can(?:not|'t|’t) breathe|severe (?:trouble|difficulty) breathing|struggling to breathe)\b/.test(topic)) {
     return 'If anyone is having severe difficulty breathing, contact your local emergency services now.';
+  }
+
+  if (/\b(clean[- ]air plan|daily plan|action plan)\b/.test(topic)) {
+    const actions = plan.actions.map((action, index) => `${index + 1}. ${action.title}. ${action.description} ${action.impact}`);
+    return [plan.summary, ...actions].join('\n\n');
   }
 
   if (/\b(what (does|is|are)|what’s|what's|explain|define|meaning of)\b.{0,25}\b(aqi|pm\s?2\.?5|air quality|reading)\b/.test(topic)) {
@@ -228,7 +308,7 @@ export function localReply(question, profile) {
     return `${swap.description} ${swap.impact}`;
   }
 
-  if (/\b(outside|outdoors?|exercise|recess|school|sport\w*|run\w*|walk\w*|play\w*|children|kids)\b/.test(topic)) {
+  if (/\b(outside|outdoors?|exercise|recess|school|sport\w*|run\w*|walk\w*|play\w*|children|kids|forecast|cleaner hours?|better time)\b/.test(topic)) {
     return `${routine.description} ${routine.impact}`;
   }
 
