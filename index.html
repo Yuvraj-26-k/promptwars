@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Check local air quality and make a clean-air plan for your household or community.">
+  <meta name="theme-color" content="#f6f7fc">
+  <title>ClearSkies · Your clean air assistant</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='13' fill='%235f4de3'/%3E%3Cpath d='M10 19h20a4 4 0 1 0-4-4M10 25h26a4 4 0 1 0-4-4M10 31h15a4 4 0 1 1-4 4' fill='none' stroke='white' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;650;700;750&family=Manrope:wght@500;600;650;700;750;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+  <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="icon-wind" viewBox="0 0 24 24"><path d="M3 8h12a2.5 2.5 0 1 0-2.5-2.5M3 12h16a2.5 2.5 0 1 0-2.5-2.5M3 16h9a2.5 2.5 0 1 1-2.5 2.5"/></symbol>
+    <symbol id="icon-pin" viewBox="0 0 24 24"><path d="M20 10c0 5-8 10-8 10S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></symbol>
+    <symbol id="icon-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="icon-sparkles" viewBox="0 0 24 24"><path d="m11 3 2.5 6.5L20 12l-6.5 2.5L11 21l-2.5-6.5L2 12l6.5-2.5L11 3ZM19 2v6m-3-3h6M20 16v5m-2.5-2.5h5"/></symbol>
+    <symbol id="icon-chart" viewBox="0 0 24 24"><path d="M3 4v16h18M6 15l5-5 4 3 6-6"/></symbol>
+    <symbol id="icon-share" viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></symbol>
+    <symbol id="icon-sliders" viewBox="0 0 24 24"><path d="M4 6h6m4 0h6M4 12h10m4 0h2M4 18h2m4 0h10M10 4v4m4 2v4m-4 2v4"/></symbol>
+    <symbol id="icon-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M19 5l-1.5 1.5m-11 11L5 19"/></symbol>
+    <symbol id="icon-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7M5 9v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9M10 21v-6h4v6"/></symbol>
+    <symbol id="icon-leaf" viewBox="0 0 24 24"><path d="M5 19C1 9 9 4 20 4c0 10-4 17-13 14m-3 3 10-10"/></symbol>
+    <symbol id="icon-bike" viewBox="0 0 24 24"><circle cx="5" cy="17" r="3"/><circle cx="19" cy="17" r="3"/><path d="m5 17 4-8 5 8H5m9 0 3-8-2-3h-3M7 9h4"/></symbol>
+    <symbol id="icon-train" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="15" rx="4"/><path d="M5 11h14m-7-8v8M9 18l-3 3m9-3 3 3M9 15h.01M15 15h.01"/></symbol>
+    <symbol id="icon-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/></symbol>
+    <symbol id="icon-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></symbol>
+    <symbol id="icon-send" viewBox="0 0 24 24"><path d="m21 3-6.7 18-3.7-7.6L3 9.7 21 3Zm0 0L10.6 13.4"/></symbol>
+    <symbol id="icon-calendar" viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="15" rx="2"/><path d="M4 11h16M8 3v5m8-5v5"/></symbol>
+  </svg>
+
+  <a class="skip-link" href="#main">Skip to dashboard</a>
+  <header class="site-header">
+    <div class="header-content">
+      <a class="brand" href="#overview" aria-label="ClearSkies home">
+        <span class="brand-symbol"><svg class="icon" aria-hidden="true"><use href="#icon-wind"></use></svg></span>
+        <span>Clear<span class="brand-accent">Skies</span></span>
+      </a>
+      <nav class="main-nav" aria-label="Main navigation">
+        <a href="#overview" aria-current="location">Overview</a>
+        <a href="#daily-plan">Daily plan</a>
+        <a href="#air-guide">Air guide</a>
+      </nav>
+      <button class="button button-primary header-chat" type="button" data-open-chat aria-haspopup="dialog">
+        <svg class="icon" aria-hidden="true"><use href="#icon-sparkles"></use></svg> Ask AI
+      </button>
+    </div>
+  </header>
+
+  <main id="main" class="dashboard">
+    <section id="overview" aria-labelledby="dashboard-title">
+      <div class="dashboard-heading">
+        <div>
+          <h1 id="dashboard-title">Your air today</h1>
+          <p>Local air quality and a cleaner daily routine for your household.</p>
+        </div>
+        <button id="location-button" class="button location-button" type="button" aria-haspopup="dialog" aria-controls="location-dialog">
+          <svg class="icon location-pin" aria-hidden="true"><use href="#icon-pin"></use></svg>
+          <span id="current-city">Delhi, India</span>
+          <svg class="icon location-chevron" aria-hidden="true"><use href="#icon-chevron"></use></svg>
+        </button>
+      </div>
+
+      <div class="overview-grid">
+        <article class="air-card" aria-labelledby="air-title">
+          <div class="air-topline">
+            <h2 id="air-title"><svg class="icon" aria-hidden="true"><use href="#icon-wind"></use></svg> Current air quality</h2>
+            <span id="air-source" class="air-source">Loading air quality</span>
+          </div>
+          <div class="air-reading" aria-live="polite">
+            <div class="air-number"><span id="aqi-value">—</span><span class="air-unit">US AQI</span></div>
+            <span id="aqi-label" class="aqi-label">Checking</span>
+          </div>
+          <p id="air-description" class="air-description">Checking the latest air quality for your area.</p>
+          <div class="air-scale" aria-hidden="true">
+            <div class="air-track"><span></span><span></span><span></span><span></span><span></span><span></span><i id="aqi-marker" hidden></i></div>
+            <div class="air-range"><span>Good</span><span>Hazardous</span></div>
+          </div>
+          <div class="air-footer">
+            <span class="pm25"><strong>PM2.5</strong> <span id="pm25-value">—</span> <span class="pm-unit">µg/m³</span></span>
+            <span id="air-updated" class="air-updated"></span>
+          </div>
+        </article>
+
+        <article class="forecast-card" aria-labelledby="forecast-title">
+          <div class="forecast-heading">
+            <span class="tile-icon forecast-icon"><svg class="icon" aria-hidden="true"><use href="#icon-chart"></use></svg></span>
+            <div><h2 id="forecast-title">24-hour outlook</h2><p>Hourly US AQI forecast</p></div>
+          </div>
+          <div id="forecast-chart" class="forecast-chart" aria-live="polite"></div>
+          <div class="forecast-tip"><svg class="icon" aria-hidden="true"><use href="#icon-info"></use></svg><p id="forecast-note">Checking the hourly forecast.</p></div>
+        </article>
+      </div>
+    </section>
+
+    <section id="daily-plan" class="daily-plan" aria-labelledby="plan-title">
+      <div class="section-heading">
+        <div>
+          <h2 id="plan-title">Your clean air plan</h2>
+          <p id="plan-summary" aria-live="polite">Three practical choices based on your household and today’s air.</p>
+        </div>
+        <button id="share-button" class="button button-secondary" type="button">
+          <svg class="icon" aria-hidden="true"><use href="#icon-share"></use></svg> Share plan
+        </button>
+      </div>
+
+      <form id="planner-form" class="planner-form" aria-label="Personalize your clean air plan">
+        <div class="form-title">
+          <span class="tile-icon form-icon"><svg class="icon" aria-hidden="true"><use href="#icon-sliders"></use></svg></span>
+          <strong>Personalize plan</strong>
+        </div>
+        <label class="form-field">Household
+          <span class="select-wrap"><select name="household">
+            <option value="family">Family with children</option>
+            <option value="sensitive">Sensitive household</option>
+            <option value="community">Community group</option>
+            <option value="individual">Individual</option>
+          </select><svg class="icon" aria-hidden="true"><use href="#icon-chevron"></use></svg></span>
+        </label>
+        <label class="form-field">Usual commute
+          <span class="select-wrap"><select name="commute">
+            <option value="car">Private car</option>
+            <option value="transit">Public transit</option>
+            <option value="walk">Walking</option>
+            <option value="bike">Cycling</option>
+            <option value="remote">Work from home</option>
+          </select><svg class="icon" aria-hidden="true"><use href="#icon-chevron"></use></svg></span>
+        </label>
+        <label class="form-field distance-field">One-way distance
+          <span class="distance-wrap"><input name="distance" type="number" min="0" max="100" step="0.1" value="8" inputmode="decimal" required><span aria-hidden="true">km</span></span>
+          <span class="sr-only">in kilometers</span>
+        </label>
+        <button class="button button-primary update-button" type="submit">Update plan</button>
+      </form>
+
+      <h3 id="plan-headline" class="sr-only"></h3>
+      <div id="plan-actions" class="plan-actions" aria-live="polite"></div>
+      <p id="plan-footnote" class="plan-footnote"></p>
+    </section>
+
+    <details id="air-guide" class="air-guide">
+      <summary><span class="tile-icon guide-icon"><svg class="icon" aria-hidden="true"><use href="#icon-info"></use></svg></span><span>How to read your air dashboard</span><svg class="icon guide-chevron" aria-hidden="true"><use href="#icon-chevron"></use></svg></summary>
+      <div class="guide-content">
+        <p><strong>US AQI</strong> describes outdoor pollution on a 0–500 scale. A higher number indicates greater risk. At 151 or above, the air is unhealthy for everyone. Follow local alerts when making outdoor plans. <a href="https://www.airnow.gov/aqi/aqi-basics/" target="_blank" rel="noopener noreferrer">AirNow AQI guide</a></p>
+        <p><strong>PM2.5</strong> is the concentration of fine particles in micrograms per cubic meter (µg/m³). The outdoor readings are modeled estimates from Copernicus CAMS via Open-Meteo. <a href="https://open-meteo.com/en/docs/air-quality-api" target="_blank" rel="noopener noreferrer">Air quality data</a></p>
+        <p><strong>Trip impact</strong> is estimated tailpipe CO₂ avoided when an average gasoline-car trip is skipped. <a href="https://www.epa.gov/greenvehicles/greenhouse-gas-emissions-typical-passenger-vehicle" target="_blank" rel="noopener noreferrer">EPA emissions estimate</a></p>
+        <p><strong>Indoor air</strong> can be improved by reducing pollution at its source and filtering particles. <a href="https://www.epa.gov/indoor-air-quality-iaq/guide-air-cleaners-home" target="_blank" rel="noopener noreferrer">EPA home air cleaner guide</a></p>
+      </div>
+    </details>
+
+    <footer class="site-footer">
+      <span>ClearSkies · Promptwars</span>
+      <span>Air quality data by <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a> and <a href="https://atmosphere.copernicus.eu/" target="_blank" rel="noopener noreferrer">Copernicus CAMS</a></span>
+    </footer>
+  </main>
+
+  <dialog id="location-dialog" class="dialog location-dialog" aria-labelledby="location-title">
+    <div class="dialog-header">
+      <div><h2 id="location-title">Change location</h2><p>Find air quality for your city.</p></div>
+      <button id="location-close" class="button icon-button" aria-label="Close location search" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-close"></use></svg></button>
+    </div>
+    <form role="search" aria-label="Find a city">
+      <label class="search-field">
+        <svg class="icon" aria-hidden="true"><use href="#icon-search"></use></svg>
+        <span class="sr-only">Search for your city</span><input id="city-search" type="search" placeholder="Search for your city" autocomplete="off" autofocus>
+      </label>
+    </form>
+    <p id="location-status" class="location-status" role="status"></p>
+    <div id="city-results" class="city-results" aria-label="Matching cities"></div>
+    <div class="city-shortcuts" aria-label="Quick picks">
+      <button class="button chip" type="button" data-city="Delhi">Delhi</button>
+      <button class="button chip" type="button" data-city="Mumbai">Mumbai</button>
+      <button class="button chip" type="button" data-city="Lahore">Lahore</button>
+      <button class="button chip" type="button" data-city="Dhaka">Dhaka</button>
+    </div>
+  </dialog>
+
+  <dialog id="chat-dialog" class="dialog chat-dialog" aria-labelledby="chat-title">
+    <div class="dialog-header chat-header">
+      <span class="tile-icon chat-icon"><svg class="icon" aria-hidden="true"><use href="#icon-sparkles"></use></svg></span>
+      <div><h2 id="chat-title">ClearSkies assistant</h2><p id="chat-mode" role="status">Assistant</p></div>
+      <button id="chat-close" class="button icon-button" aria-label="Close assistant" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-close"></use></svg></button>
+    </div>
+    <div id="chat-messages" class="chat-messages" role="log" aria-live="polite" aria-label="Conversation">
+      <div class="chat-message chat-message--assistant">Ask me about going outside, keeping indoor air cleaner, or choosing a lower-emission trip.</div>
+    </div>
+    <div class="chat-prompts" aria-label="Suggested questions">
+      <button class="button chip" type="button" data-prompt="What should we do about outdoor activity today?">Outdoor activity</button>
+      <button class="button chip" type="button" data-prompt="How can I improve my indoor air without a purifier?">Indoor air on a budget</button>
+      <button class="button chip" type="button" data-prompt="What is a lower-emission alternative to my usual commute?">Cleaner commute</button>
+    </div>
+    <form id="chat-form" class="chat-form">
+      <label class="sr-only" for="chat-question">Ask a question</label><input id="chat-question" name="question" maxlength="800" placeholder="Ask a clean air question…" autocomplete="off" required>
+      <button class="button button-primary icon-button" type="submit" aria-label="Send question"><svg class="icon" aria-hidden="true"><use href="#icon-send"></use></svg></button>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+  <noscript><p class="noscript">Enable JavaScript to view air quality and build a clean air plan.</p></noscript>
+</body>
+</html>

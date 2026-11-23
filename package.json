@@ -1,0 +1,9 @@
+{
+  "name": "clearskies-promptwars",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A local-first clean-air assistant for households and communities.",
+  "engines": { "node": ">=22" },
+  "scripts": { "start": "node server.js", "test": "node --test" }
+}
