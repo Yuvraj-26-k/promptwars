@@ -741,6 +741,17 @@ async function ask(questionValue) {
   const answer = typeof result?.reply === 'string' && result.reply.trim() ? result.reply : localReply(question, context);
   const isAi = result?.mode === 'ai';
   response.textContent = answer;
+  if (context.dataMode === 'live' && context.time && Number.isFinite(context.aqi)) {
+    const evidence = makeElement('p', 'reply-evidence');
+    evidence.textContent = `Air data for ${context.city} · ${localClock(context.time, true)} local time · US AQI ${context.aqi}`;
+    if (Number.isFinite(context.pm25)) evidence.append(` · PM₂.₅ ${context.pm25} µg/m³`);
+    const source = makeElement('a', '', 'Open-Meteo / CAMS model estimate');
+    source.href = 'https://open-meteo.com/en/docs/air-quality-api';
+    source.target = '_blank';
+    source.rel = 'noopener noreferrer';
+    evidence.append(document.createElement('br'), source);
+    response.append(evidence);
+  }
   conversation.push({ role: 'user', content: question }, { role: 'assistant', content: answer });
   if (conversation.length > 6) conversation.splice(0, conversation.length - 6);
   chatRequest = undefined;

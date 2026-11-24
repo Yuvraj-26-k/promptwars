@@ -284,3 +284,4 @@ section, details { scroll-margin-top: 1.5rem; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
 }
+.reply-evidence { margin-top: .7rem; padding-top: .5rem; border-top: 1px solid var(--line); font-size: .85rem; }
