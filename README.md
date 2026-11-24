@@ -19,6 +19,8 @@ Open [ClearSkies on localhost](http://127.0.0.1:3000). To change the port, set `
 
 ## Enable generative chat
 
+For local AI, start Ollama with a chat model installed. In `.env`, set `AI_PROVIDER=ollama` and `OLLAMA_MODEL` to its installed name (for example, `gemma4:12b`), then restart ClearSkies. In this mode chat runs on your computer.
+
 Copy `.env.example` to `.env` in the project root and set a key from **Google AI Studio** (`GEMINI_API_KEY`) or **OpenAI** (`OPENAI_API_KEY`). Restart the server. Keep the key in `.env` or the server environment. [Google AI Studio keys](https://aistudio.google.com/apikey) · [OpenAI API keys](https://platform.openai.com/api-keys)
 
 With both keys set, OpenAI is selected by default. Set `AI_PROVIDER=gemini` or `AI_PROVIDER=openai` to choose explicitly. `GEMINI_MODEL` and `OPENAI_MODEL` override the defaults `gemini-3.5-flash-lite` and `gpt-4.1-mini`. The assistant identifies the provider that answered. The built-in guide works without a key and takes over if the provider is unavailable.

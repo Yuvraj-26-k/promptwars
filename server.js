@@ -260,7 +260,23 @@ async function generateGemini(fetchImpl, { key, model }, messages) {
     .trim();
 }
 
-function resolveChatModel({ provider, apiKey, model, geminiApiKey, geminiModel }) {
+async function generateLocalModel(fetchImpl, { model }, messages) {
+  const data = await fetchJson(fetchImpl, 'http://127.0.0.1:11434/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model, stream: false, think: false,
+      messages: [{ role: 'system', content: assistantInstructions }, ...messages],
+      options: { num_ctx: 4096, num_predict: 256 },
+    }),
+  }, 180_000);
+  return data.message?.content?.trim();
+}
+
+function resolveChatModel({ provider, apiKey, model, geminiApiKey, geminiModel, ollamaModel }) {
+  if (provider?.trim().toLowerCase() === 'ollama') {
+    return { enabled: true, provider: 'ollama', model: ollamaModel?.trim() || 'gemma4:12b', generate: generateLocalModel };
+  }
   const configured = {
     openai: { key: apiKey?.trim(), model: model?.trim() || 'gpt-4.1-mini', generate: generateOpenAI },
     gemini: {
@@ -343,7 +359,7 @@ export function createAppServer({
   geminiApiKey = process.env.GEMINI_API_KEY,
   geminiModel = process.env.GEMINI_MODEL,
 } = {}) {
-  const chat = resolveChatModel({ provider, apiKey, model, geminiApiKey, geminiModel });
+  const chat = resolveChatModel({ provider, apiKey, model, geminiApiKey, geminiModel, ollamaModel: process.env.OLLAMA_MODEL });
   const lookupAir = createAirLookup(fetchImpl);
   return createServer({ requestTimeout: 15_000, headersTimeout: 10_000 }, async (request, response) => {
     try {

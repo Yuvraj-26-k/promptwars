@@ -663,25 +663,27 @@ function addMessage(role, text) {
   return message;
 }
 
+const providerNames = { openai: 'OpenAI', gemini: 'Gemini', ollama: 'Local Ollama' };
+
 function describeChatStatus() {
   if (!chatStatus) {
     setText('chat-mode', 'Checking assistant setup…');
     return;
   }
 
-  const provider = chatStatus.provider === 'gemini' ? 'Gemini' : 'OpenAI';
+  const provider = providerNames[chatStatus.provider];
   setText('adapt-plan-label', chatStatus.enabled ? 'Ask AI to adapt plan' : 'Adapt my plan');
   setText('chat-mode', chatStatus.enabled ? `${provider} ready` : 'Built-in guide');
   setText('chat-data-note', chatStatus.enabled
     ? `Your question, recent messages, city label, and plan context are sent to ${provider}.`
-    : 'The built-in guide uses your current plan. Generative replies require an API key in the server setup.');
+    : 'The built-in guide uses your current plan. Configure a local model or an API key for generative replies.');
   if (chatMode) chatMode.dataset.mode = chatStatus.enabled ? 'ai' : 'local';
 }
 
 function loadChatStatus() {
   if (chatStatusRequest) return chatStatusRequest;
   chatStatusRequest = api('/api/status', {}, 4000).then(({ chat }) => {
-    const provider = ['gemini', 'openai'].includes(chat?.provider) ? chat.provider : null;
+    const provider = Object.hasOwn(providerNames, chat?.provider) ? chat.provider : null;
     chatStatus = { enabled: Boolean(provider && chat.enabled === true), provider };
   }).catch(() => {
     chatStatus = { enabled: false, provider: null };
@@ -729,7 +731,7 @@ async function ask(questionValue) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question, profile: context, history: conversation }),
         signal: request.signal,
-      }, 24000);
+      }, chatStatus.provider === 'ollama' ? 185000 : 24000);
     } catch {
       result = { reason: 'provider_unavailable' };
     }
@@ -744,7 +746,7 @@ async function ask(questionValue) {
   chatRequest = undefined;
   if (sendButton) sendButton.disabled = false;
   if (chatMode) {
-    const provider = result?.provider === 'gemini' ? 'Gemini' : 'OpenAI';
+    const provider = providerNames[result?.provider] || 'AI';
     chatMode.textContent = isAi ? `AI reply · ${provider}` : result?.reason === 'provider_unavailable'
       ? 'AI unavailable · built-in guide' : 'Built-in guide';
     chatMode.dataset.mode = isAi ? 'ai' : 'local';
