@@ -98,7 +98,7 @@ test('air quality returns modeled current conditions and hourly values in local 
     return Response.json({
       timezone: 'Asia/Kolkata',
       current: { time: now, us_aqi: 189, pm2_5: 95.4 },
-      hourly: { time: [now, next], us_aqi: [189, 171], pm2_5: [95.4, null] },
+      hourly: { time: [now, '2026-11-31T11:00', next], us_aqi: [189, 999, 171], pm2_5: [95.4, null, null] },
     });
   } });
 
@@ -211,8 +211,12 @@ test('chat status exposes provider availability while preserving an explicit pro
 
 test('Gemini receives current model data and strips stale or illustrative forecasts', async () => {
   const current = {
-    ...profile, sample: false, dataMode: 'live', time: '2026-11-23T10:00',
-    forecast: [{ time: '2026-11-23T11:00', aqi: 171 }, { time: 'invalid', aqi: 190 }],
+    ...profile, sample: false, dataMode: 'live', time: '2026-11-23T10:30',
+    forecast: [
+      { time: '2026-11-23T10:00', aqi: 180 },
+      { time: '2026-11-23T11:00', aqi: 171 },
+      { time: '2026-11-31T11:00', aqi: 999 },
+    ],
   };
   const history = [
     { role: 'user', content: 'Where should I start?' },
@@ -243,7 +247,7 @@ test('Gemini receives current model data and strips stale or illustrative foreca
     const result = await request(server, '/api/chat', {
       method: 'POST', body: {
         question,
-        profile: { ...current, dataMode, selectedForecastTimes: ['2026-11-23T11:00', '2026-11-23T15:00'] },
+        profile: { ...current, dataMode, selectedForecastTimes: ['2026-11-23T10:00', '2026-11-23T11:00'] },
         history,
       },
     });
@@ -252,9 +256,9 @@ test('Gemini receives current model data and strips stale or illustrative foreca
   const [live, cached, demo] = contexts.map(({ profile }) => profile);
   assert.equal(live.dataMode, 'modeled');
   assert.equal(live.time, current.time);
-  assert.deepEqual(live.forecast, current.forecast.slice(0, 1));
+  assert.deepEqual(live.forecast, current.forecast.slice(0, 2));
   assert.deepEqual(live.selectedHours, live.forecast);
-  assert.match(contexts[0].forecastDecision.summary, /Estimated forecast.*AQI 171/);
+  assert.match(contexts[0].forecastDecision.summary, /Estimated forecast.*AQI 180.*AQI 171.*lower by 9/);
   assert.equal(cached.dataMode, 'cached');
   assert.equal(cached.aqi, null);
   assert.equal(cached.pm25, null);

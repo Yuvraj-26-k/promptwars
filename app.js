@@ -1,4 +1,4 @@
-import { buildPlan, forecastDecision, localReply } from './plan.js';
+import { buildPlan, forecastDecision, localReply, localTimeMilliseconds } from './plan.js';
 import { makeElement, svgElement } from './dom.js';
 import { renderForecastChart } from './forecast-chart.js';
 
@@ -142,7 +142,7 @@ function modelTimeAtLocation(data, date) {
 function isFreshAir(data) {
   if (!data.timezone || Date.now() - Date.parse(data.fetchedAt) > recentEstimateAge) return false;
   try {
-    const age = modelTimeAtLocation(data, new Date()) - Date.parse(`${data.time}Z`);
+    const age = modelTimeAtLocation(data, new Date()) - localTimeMilliseconds(data.time);
     return age >= -15 * 60 * 1000 && age <= recentEstimateAge;
   } catch {
     return false;
@@ -151,7 +151,7 @@ function isFreshAir(data) {
 
 function validAir(data) {
   return Number.isFinite(data?.aqi) && data.aqi >= 0 &&
-    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(data.time) && Number.isFinite(Date.parse(`${data.time}Z`));
+    Number.isFinite(localTimeMilliseconds(data.time));
 }
 
 function recentSnapshot(data) {
@@ -205,9 +205,8 @@ function relativeAqiPosition(aqi) {
 }
 
 function localClock(time, showDate = false, showMinutes = showDate) {
-  if (typeof time !== 'string' || !time) return '';
-  const localTime = new Date(`${time.slice(0, 16)}:00Z`);
-  if (!Number.isFinite(localTime.getTime())) return '';
+  const localTime = localTimeMilliseconds(time);
+  if (!Number.isFinite(localTime)) return '';
   return new Intl.DateTimeFormat(undefined, {
     ...(showDate ? { month: 'short', day: 'numeric' } : {}),
     hour: 'numeric',

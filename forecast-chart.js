@@ -1,4 +1,4 @@
-import { findCleanerWindow, findLowerAqiHour } from './plan.js';
+import { findCleanerWindow, findLowerAqiHour, localTimeMilliseconds } from './plan.js';
 import { makeElement, svgElement } from './dom.js';
 
 export function renderForecastChart(container, {
@@ -14,7 +14,7 @@ export function renderForecastChart(container, {
   onSelect();
   container.replaceChildren();
   const points = (airMode !== 'cached' && Array.isArray(air?.forecast) ? air.forecast : [])
-    .filter((point) => point && Number.isFinite(point.aqi) && typeof point.time === 'string').slice(0, 24);
+    .filter((point) => point && Number.isFinite(point.aqi) && Number.isFinite(localTimeMilliseconds(point.time))).slice(0, 24);
   if (points.length < 2) {
     const status = makeElement('div', 'forecast-empty', loading ? 'Loading forecast…' : 'Forecast unavailable');
     status.setAttribute('role', 'status');

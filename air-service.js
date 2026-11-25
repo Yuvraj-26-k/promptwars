@@ -1,4 +1,4 @@
-import { buildPlan, forecastDecision, localReply } from './plan.js';
+import { buildPlan, forecastDecision, localReply, localTimeMilliseconds } from './plan.js';
 
 const households = ['family', 'sensitive', 'community', 'individual'];
 const commutes = ['car', 'transit', 'walk', 'bike', 'remote'];
@@ -66,7 +66,7 @@ async function findCities(fetchImpl, query) {
 }
 
 function isLocalTime(value) {
-  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value);
+  return Number.isFinite(localTimeMilliseconds(value));
 }
 
 async function getAir(fetchImpl, latitude, longitude) {
@@ -139,9 +139,11 @@ function sanitizeProfile(input) {
   const ignoreReadings = cached || profile.dataMode === 'unavailable';
   const aqi = ignoreReadings ? null : optionalNumber(profile.aqi, 2_000);
   const time = isLocalTime(profile.time) ? profile.time : null;
+  // The forecast includes the current hourly bucket even between hour marks.
+  const forecastStart = time && `${time.slice(0, 13)}:00`;
   const forecast = aqi !== null && time && Array.isArray(profile.forecast)
     ? profile.forecast.slice(0, 24).flatMap((point) => {
-      if (!isLocalTime(point?.time) || point.time < time) return [];
+      if (!isLocalTime(point?.time) || point.time < forecastStart) return [];
       const aqi = optionalNumber(point.aqi, 2_000);
       return aqi === null ? [] : [{ time: point.time, aqi: Math.round(aqi) }];
     })

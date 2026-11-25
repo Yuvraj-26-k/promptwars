@@ -35,7 +35,7 @@ function nonnegativeNumber(value) {
 
 // Open-Meteo's local timestamps have no offset. Use a UTC clock for calendar arithmetic
 // so these comparisons and labels never depend on the viewer's time zone.
-function localTimeMilliseconds(time) {
+export function localTimeMilliseconds(time) {
   if (typeof time !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(time)) return NaN;
   const milliseconds = Date.parse(`${time}Z`);
   if (!Number.isFinite(milliseconds) || toLocalIso(milliseconds) !== time) return NaN;
