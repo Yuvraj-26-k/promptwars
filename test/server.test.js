@@ -225,6 +225,7 @@ test('Gemini receives current model data and strips stale or illustrative foreca
       assert.equal(options.redirect, 'error');
       const payload = JSON.parse(options.body);
       assert.match(payload.systemInstruction.parts[0].text, /modeled/);
+      assert.match(payload.systemInstruction.parts[0].text, /everyday words.*example readings/s);
       assert.deepEqual(payload.contents.map(({ role }) => role), ['user', 'model', 'user']);
       contexts.push(JSON.parse(payload.contents.at(-1).parts[0].text));
       return Response.json({ candidates: [{ content: { parts: [

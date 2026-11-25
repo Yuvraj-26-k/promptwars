@@ -850,7 +850,9 @@ async function ask(questionValue, selectedContext) {
   const answer = typeof result?.reply === 'string' && result.reply.trim() ? result.reply : localReply(question, context);
   const isAi = result?.mode === 'ai';
   renderAIResponse(response, answer);
-  if (context.dataMode === 'live' && context.time && Number.isFinite(context.aqi)) {
+  if (context.dataMode === 'demo') {
+    response.prepend(makeElement('p', 'reply-evidence', 'Delhi sample · Example readings'));
+  } else if (context.dataMode === 'live' && context.time && Number.isFinite(context.aqi)) {
     const evidence = makeElement('p', 'reply-evidence');
     evidence.textContent = `Air data for ${context.city} · ${localClock(context.time, true)} local time · US AQI ${context.aqi}`;
     if (Number.isFinite(context.pm25)) evidence.append(` · PM₂.₅ ${context.pm25} µg/m³`);

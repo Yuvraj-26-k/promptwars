@@ -275,8 +275,8 @@ export function forecastDecision({ selectedHours = [], ...profile } = {}) {
   };
   const difference = reference ? Math.abs(selected.aqi - reference.aqi) : 0;
   const summary = [
-    `${sample ? 'Sample' : 'Estimated'} forecast (local time). ${formatTime(selected)} has AQI ${selected.aqi}.`,
-    reference && `${formatTime(reference)} has AQI ${reference.aqi}.`,
+    `${sample ? 'Sample forecast' : 'Estimated forecast'} (local time). ${formatTime(selected)}: AQI ${selected.aqi}.`,
+    reference && `${formatTime(reference)}: AQI ${reference.aqi}.`,
     reference && (difference
       ? `${formatTime(preferred)} is lower by ${difference} AQI points.`
       : 'Both hours have the same estimated AQI.'),
