@@ -57,3 +57,28 @@ With both keys set, OpenAI is selected by default. Set `AI_PROVIDER=gemini` or `
 - U.S. AQI categories and particle exposure guidance. [AirNow AQI basics](https://www.airnow.gov/aqi/aqi-basics/) · [AirNow particle pollution guide](https://www.airnow.gov/publications/air-quality-index/air-quality-guide-for-particle-pollution/)
 - Indoor filtration and typical gasoline-car tailpipe CO₂. [EPA air cleaner guide](https://www.epa.gov/indoor-air-quality-iaq/guide-air-cleaners-home) · [EPA passenger-vehicle emissions factor](https://www.epa.gov/greenvehicles/greenhouse-gas-emissions-typical-passenger-vehicle)
 - Reducing exhaust during school pickup. [EPA Idle-Free Schools Toolkit](https://www.epa.gov/schools/idle-free-schools-toolkit-healthy-school-environment)
+
+## Live Application
+
+https://promptwars-5mla.onrender.com
+
+## Competition
+
+PromptWars 2026 - Challenge 6: Urban Air Quality Assistant
+
+## Key Features
+
+- Gemini-powered personalized AI assistant
+- Automatic city detection from conversations
+- Location-based air quality estimates
+- Hourly pollution forecasts
+- Personalized low-emission daily routines
+- Affordable indoor air quality recommendations
+- Estimated carbon emission savings
+- Offline fallback when AI is unavailable
+- 21 passing automated tests
+
+## Technology Stack
+
+HTML, CSS, JavaScript, Node.js, Gemini API, Open-Meteo and Render.
+
