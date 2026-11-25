@@ -1,4 +1,4 @@
-import { buildPlan, findCleanerWindow, localReply } from './plan.js';
+import { buildPlan, findCleanerWindow, forecastDecision, localReply } from './plan.js';
 
 const cities = [
   { name: 'Delhi', region: 'Delhi', country: 'India', latitude: 28.61, longitude: 77.23, timezone: 'Asia/Kolkata' },
@@ -65,12 +65,14 @@ let airMode = 'unavailable';
 let airLocation;
 let lastAirAttempt = 0;
 let latestPlan;
+let forecastSelection;
 let airRequest;
 let cityRequest;
 let cityTimer;
 let toastTimer;
 let geolocationAttempt = 0;
 let chatRequest;
+let chatPlace;
 let chatStatus;
 let chatStatusRequest;
 const conversation = [];
@@ -113,16 +115,16 @@ function displayCity(place = city) {
   return [place.name, place.country].filter(Boolean).join(', ');
 }
 
-function profile() {
-  const usableAir = ['live', 'demo'].includes(airMode) ? air : null;
+function profile(place = city, reading = air, mode = airMode) {
+  const usableAir = ['live', 'demo'].includes(mode) ? reading : null;
   return {
     ...settings,
-    city: displayCity(),
+    city: displayCity(place),
     aqi: usableAir ? Math.round(usableAir.aqi) : null,
     pm25: Number.isFinite(usableAir?.pm25) ? usableAir.pm25 : null,
-    dataMode: airMode,
-    time: airMode === 'live' ? air.time : undefined,
-    forecast: airMode === 'live' ? air.forecast : [],
+    dataMode: mode,
+    time: mode === 'live' ? reading.time : undefined,
+    forecast: mode === 'live' ? reading.forecast : [],
   };
 }
 
@@ -297,11 +299,20 @@ function renderAirFeedback(loading) {
 function renderForecast(loading) {
   const container = get('forecast-chart');
   if (!container) return;
+  const focusedControl = container.contains(document.activeElement)
+    ? document.activeElement.dataset.forecastControl : undefined;
+  const forecastKey = `${locationKey(city)}:${airMode}`;
+  const previousSelection = forecastSelection?.key === forecastKey ? forecastSelection : null;
+  const selectedTime = previousSelection?.selected?.time;
+  let pinnedTime = previousSelection?.reference?.time;
+  forecastSelection = undefined;
   container.replaceChildren();
   const points = (airMode !== 'cached' && Array.isArray(air?.forecast) ? air.forecast : [])
     .filter((point) => point && Number.isFinite(point.aqi) && typeof point.time === 'string').slice(0, 24);
   if (points.length < 2) {
-    container.append(makeElement('div', 'forecast-empty', loading ? 'Loading forecast…' : 'Forecast unavailable'));
+    const status = makeElement('div', 'forecast-empty', loading ? 'Loading forecast…' : 'Forecast unavailable');
+    status.setAttribute('role', 'status');
+    container.append(status);
     setText('forecast-note', airMode === 'cached' && !loading ? 'A fresh estimate is needed for forecast guidance.' : '');
     return;
   }
@@ -313,6 +324,7 @@ function renderForecast(loading) {
   const top = 9;
   const bottom = height - 9;
   const values = points.map(({ aqi }) => aqi);
+  if (!points.some((point) => point.time === pinnedTime)) pinnedTime = undefined;
   const min = Math.max(0, Math.floor((Math.min(...values) - 10) / 20) * 20);
   const max = Math.max(min + 40, Math.ceil((Math.max(...values) + 10) / 20) * 20);
   const xAt = (index) => start + index / (points.length - 1) * (end - start);
@@ -340,7 +352,11 @@ function renderForecast(loading) {
 
   svg.append(svgElement('path', { d: `${path} L ${end} ${bottom} H ${start} Z`, class: 'forecast-fill', fill: 'url(#forecast-gradient)' }));
   svg.append(svgElement('path', { d: path, class: 'forecast-line', fill: 'none', stroke: 'currentColor', 'stroke-width': '2.25', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
-  svg.append(svgElement('circle', { cx: start, cy: yAt(points[0].aqi), r: '3', class: 'forecast-dot', fill: 'currentColor' }));
+  const guide = svgElement('line', { y1: top, y2: bottom, class: 'forecast-guide' });
+  const marker = svgElement('circle', { r: '4', class: 'forecast-dot', fill: 'currentColor' });
+  const pinnedMarker = svgElement('circle', { r: '4', class: 'forecast-pinned-dot', fill: 'currentColor' });
+  svg.append(guide, marker, pinnedMarker);
+  svg.classList.add('forecast-interactive');
   container.append(svg);
 
   const times = makeElement('div', 'forecast-times');
@@ -348,6 +364,83 @@ function renderForecast(loading) {
   const indices = [...new Set([0, Math.round(step), Math.round(step * 2), points.length - 1])];
   for (const index of indices) times.append(makeElement('span', '', localClock(points[index].time)));
   container.append(times);
+
+  const explorer = makeElement('div', 'forecast-explorer');
+  const detail = makeElement('p', 'forecast-detail');
+  const control = makeElement('input', 'forecast-slider');
+  control.type = 'range';
+  control.min = '0';
+  control.max = String(points.length - 1);
+  control.setAttribute('aria-label', 'Explore forecast by hour');
+  const buttons = makeElement('div', 'forecast-actions');
+  const pin = makeElement('button', 'button button-secondary', 'Pin this hour');
+  const askHour = makeElement('button', 'button button-assistant', 'Ask about this hour');
+  control.dataset.forecastControl = 'slider';
+  pin.dataset.forecastControl = 'pin';
+  askHour.dataset.forecastControl = 'ask';
+  pin.type = askHour.type = 'button';
+  askHour.setAttribute('aria-haspopup', 'dialog');
+  const comparison = makeElement('p', 'forecast-comparison');
+  buttons.append(pin, askHour);
+  explorer.append(detail, control, buttons, comparison);
+  container.append(explorer);
+
+  function selectHour(index) {
+    const point = points[index];
+    const x = xAt(index);
+    const label = localClock(point.time, true, true) + ' local time';
+    const aqi = Math.round(point.aqi);
+    const text = (airMode === 'demo' ? 'Sample' : 'Estimated') + ' AQI ' + aqi + ' · ' + aqiCategory(aqi).name;
+    control.value = String(index);
+    control.setAttribute('aria-valuetext', label + ' · ' + text);
+    guide.setAttribute('x1', x);
+    guide.setAttribute('x2', x);
+    marker.setAttribute('cx', x);
+    marker.setAttribute('cy', yAt(point.aqi));
+    detail.textContent = label + ' · ' + text;
+    const pinnedIndex = points.findIndex(({ time }) => time === pinnedTime);
+    const pinned = points[pinnedIndex];
+    forecastSelection = { key: forecastKey, selected: point, reference: pinned };
+    pinnedMarker.setAttribute('visibility', pinned ? 'visible' : 'hidden');
+    if (pinned) {
+      pinnedMarker.setAttribute('cx', xAt(pinnedIndex));
+      pinnedMarker.setAttribute('cy', yAt(pinned.aqi));
+    }
+    pin.textContent = pinned ? 'Clear pinned hour' : 'Pin this hour';
+    askHour.textContent = pinned && pinned !== point ? 'Ask about these hours' : 'Ask about this hour';
+    const decision = pinned && pinned !== point ? forecastDecision(forecastProfile()) : null;
+    comparison.textContent = decision
+      ? `${decision.summary} ${decision.action.description} ${decision.action.impact}`
+      : pinned ? 'Choose another hour to compare.' : '';
+  }
+
+  function selectFromPointer(event) {
+    const transform = svg.getScreenCTM();
+    if (!transform || !transform.a) return;
+    const x = new DOMPoint(event.clientX, event.clientY).matrixTransform(transform.inverse()).x;
+    const index = Math.round((x - start) / (end - start) * (points.length - 1));
+    selectHour(Math.max(0, Math.min(points.length - 1, index)));
+  }
+
+  control.addEventListener('input', () => selectHour(Number(control.value)));
+  svg.addEventListener('pointermove', (event) => {
+    if (event.pointerType === 'mouse' && document.activeElement !== control) selectFromPointer(event);
+  });
+  svg.addEventListener('click', selectFromPointer);
+  pin.addEventListener('click', () => {
+    pinnedTime = pinnedTime ? undefined : points[Number(control.value)].time;
+    selectHour(Number(control.value));
+  });
+  askHour.addEventListener('click', () => {
+    const context = forecastProfile();
+    showDialog(chatDialog, chatQuestion);
+    void ask(context.selectedHours.length > 1
+      ? 'Compare these two forecast hours for my outdoor plans. What would you suggest?'
+      : 'What does this selected forecast hour mean for my outdoor plans?', context);
+  });
+  selectHour(Math.max(0, points.findIndex((point) => point.time === selectedTime)));
+  const focusTarget = [control, pin, askHour].find((element) => element.dataset.forecastControl === focusedControl);
+  focusTarget?.focus({ preventScroll: true });
 
   const range = `${Math.round(Math.min(...values))}–${Math.round(Math.max(...values))}`;
   if (airMode === 'demo') {
@@ -364,6 +457,20 @@ function renderForecast(loading) {
       setText('forecast-note', `Forecast AQI ${range} · all times local`);
     }
   }
+}
+
+function forecastProfile() {
+  const context = profile();
+  const { selected, reference } = forecastSelection;
+  const selectedHours = (reference && reference !== selected ? [selected, reference] : [selected])
+    .map(({ time, aqi }) => ({ time, aqi: Math.round(aqi) }));
+  return {
+    ...context,
+    time: air.time,
+    forecast: air.forecast,
+    selectedHours,
+    selectedForecastTimes: selectedHours.map(({ time }) => time),
+  };
 }
 
 function renderPlan() {
@@ -697,6 +804,7 @@ function loadChatStatus() {
 function resetChat() {
   chatRequest?.abort();
   chatRequest = undefined;
+  chatPlace = undefined;
   conversation.length = 0;
   if (chatMessages) {
     chatMessages.replaceChildren(...(chatGreeting ? [chatGreeting] : []));
@@ -708,7 +816,7 @@ function resetChat() {
   describeChatStatus();
 }
 
-async function ask(questionValue) {
+async function ask(questionValue, selectedContext) {
   const question = questionValue.trim().slice(0, 1000);
   if (!question || chatRequest || !chatQuestion) return;
   const request = new AbortController();
@@ -719,9 +827,8 @@ async function ask(questionValue) {
   chatQuestion.value = '';
   addMessage('user', question);
   const response = addMessage('assistant', 'Preparing your reply…');
-  await detectChatCity(question, request.signal);
+  const context = selectedContext ?? await chatProfile(question, request.signal);
   if (request.signal.aborted) return;
-  const context = profile();
   if (!chatStatus || chatStatusRequest) await loadChatStatus();
   if (request.signal.aborted) return;
 
@@ -807,7 +914,9 @@ function shareText() {
   const title = `Clean-air plan for ${context.city}`;
   const timestamp = airMode === 'live' ? `Open-Meteo estimate for ${localClock(air.time, true)} local time.` : '';
   const actions = latestPlan.actions.map((action) => `${action.title}\n${action.description}\n${action.impact}`);
-  return [title, timestamp, latestPlan.summary, ...actions, latestPlan.footnote].filter(Boolean).join('\n\n');
+  const decision = forecastSelection && forecastDecision(forecastProfile());
+  const timing = decision && `${decision.summary}\n${decision.action.description} ${decision.action.impact}`;
+  return [title, timestamp, timing, latestPlan.summary, ...actions, latestPlan.footnote].filter(Boolean).join('\n\n');
 }
 
 async function sharePlan() {
@@ -883,43 +992,49 @@ function renderAIResponse(element, answer) {
 
 
 
-async function detectChatCity(question, signal) {
-  const pattern = /\b(?:live in|lives in|living in|located in|based in|air quality in|pollution in|AQI in|smog in|city of|in)\s+([A-Z][a-z]+(?:[ -][A-Z][a-z]+){0,3})/g;
+async function chatProfile(question, signal) {
+  const placeMention = /\b(?:air quality|AQI|pollution|smog)\s+in\s+([\p{L}][\p{L}'’ -]{1,59}?)(?=\s+(?:today|tomorrow|right now|this morning|this evening|for|and)\b|[?.!,]|$)/iu;
+  const locationMention = /\b(?:live in|lives in|living in|located in|based in|city of|in)\s+([A-Z][a-z]+(?:[ -][A-Z][a-z]+){0,3})/;
+  const requestedCity = question.match(placeMention)?.[1]?.trim();
+  const name = requestedCity || question.match(locationMention)?.[1];
+  const place = name ? await resolveChatPlace(name, signal) : chatPlace;
+  if (signal.aborted) return;
+  if (place) {
+    chatPlace = place;
+    return profileForChatPlace(place, signal);
+  }
+  if (name) {
+    if (requestedCity) chatPlace = undefined;
+    return requestedCity ? { ...profile(city, null, 'unavailable'), city: requestedCity } : profile();
+  }
+  return profile();
+}
 
-  for (const match of question.matchAll(pattern)) {
-    const name = match[1].trim();
-
+async function resolveChatPlace(name, signal) {
+  const normalized = name.toLowerCase();
+  const matches = (place) => isCity(place) && place.name.toLowerCase() === normalized;
+  let place = [city, ...cities].find(matches);
+  if (!place) {
     try {
       const query = new URLSearchParams({ q: name });
-      const data = await api('/api/cities?' + query, { signal }, 7000);
-
-      if (signal.aborted) return;
-
-      const place = data.cities?.find(item =>
-        isCity(item) &&
-        item.name.toLowerCase() === name.toLowerCase()
-      );
-
-      if (!place) continue;
-
-      if (city.latitude === place.latitude &&
-          city.longitude === place.longitude &&
-          airMode === 'live') return;
-
-      city = place;
-      liveLocation = place;
-      rememberedCity = place;
-      savePreferences();
-
-      await loadAir();
-
-      if (!signal.aborted) {
-        showToast('Chat location: ' + displayCity());
-      }
-
-      return;
+      const data = await api('/api/cities?' + query, { signal }, 4000);
+      place = data.cities?.find(matches);
     } catch {
-      if (signal.aborted) return;
+      // City lookup can be unavailable when the network is down.
     }
   }
+  return place;
+}
+
+async function profileForChatPlace(place, signal) {
+  if (locationKey(place) === locationKey(city) && airMode === 'live' && isFreshAir(air)) return profile();
+
+  try {
+    const query = new URLSearchParams({ lat: place.latitude, lon: place.longitude });
+    const reading = await api('/api/air?' + query, { signal }, 5000);
+    if (validAir(reading) && isFreshAir(reading)) return profile(place, reading, 'live');
+  } catch {
+    // The assistant can still provide general advice without fresh estimates.
+  }
+  return profile(place, null, 'unavailable');
 }

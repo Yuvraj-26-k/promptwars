@@ -27,9 +27,9 @@ With both keys set, OpenAI is selected by default. Set `AI_PROVIDER=gemini` or `
 
 ## Try ClearSkies
 
-1. Search for your city or choose **Use my location** with browser permission. Review the modeled U.S. AQI, PM₂.₅ concentration, and 24-hour forecast. Use **Refresh air** to check again.
+1. Search for your city or choose **Use my location** with browser permission. Hover or tap the 24-hour outlook, or use the slider with your keyboard, to see an hour’s estimated AQI. Choose **Pin this hour** and move to a second hour to compare. **Ask about these hours** opens the assistant with the two selected readings. The share button includes the timing comparison and suggested action in your plan.
 2. Set the household and usual commute, then open **Household routines** to specify school runs, cooking, outdoor exercise, or access to an air purifier. Choose **Update plan**.
-3. Choose **Adapt my plan** for a tailored walkthrough of the daily routine, indoor air improvement, and sustainable alternative. With a key configured, **Ask AI to adapt plan** uses the selected model. Try asking “What should we change for an outdoor community event?” or share your plan with neighbors.
+3. Choose **Adapt my plan** for a tailored walkthrough of the daily routine, indoor air improvement, and sustainable alternative. With a key configured, **Ask AI to adapt plan** uses the selected model. Try “What’s the air quality in mumbai today?” followed by “Should I move our outdoor activity indoors?” The conversation uses Mumbai while the dashboard keeps its selected location.
 4. To rehearse an unhealthy-air scenario, open the location picker and choose **Try Delhi sample**. With an 8 km one-way car commute, avoiding that gasoline-car round trip saves about 4 kg of tailpipe CO₂ from that car. Choose **Return to live** when finished.
 
 ## How it works
@@ -48,8 +48,9 @@ With both keys set, OpenAI is selected by default. Set `AI_PROVIDER=gemini` or `
 ## Testing, accessibility, and privacy
 
 - Run `npm test` from the project root. The dependency-free Node test runner checks recommendation logic and server behavior with mocked upstream data, so tests run without an API key or internet connection.
+- The Node server limits per-client traffic, total traffic, concurrent chat requests, and daily AI usage per process. When a provider call fails, the chat returns the built-in guide and releases the request slot.
 - The interface adapts to smaller screens and provides keyboard-operable dialogs, visible focus, labeled controls, text for AQI categories, and live announcements for changing results.
-- The server listens on loopback. It keeps API keys in its environment or an ignored `.env` file. The browser remembers the selected city and household settings locally. Device coordinates are rounded before the air-data lookup and stay out of saved preferences and chat requests. Recent messages and plan context go to the selected provider only when generative chat is enabled and you ask a question.
+- The Node server accepts localhost requests and the configured Render hostname. It keeps API keys in its environment or an ignored `.env` file. The browser remembers the selected city and household settings locally. Device coordinates are rounded before the air-data lookup and stay out of saved preferences and chat requests. Recent messages and plan context go to the selected provider only when generative chat is enabled and you ask a question.
 
 ## Sources
 
@@ -76,7 +77,6 @@ PromptWars 2026 - Challenge 6: Urban Air Quality Assistant
 - Affordable indoor air quality recommendations
 - Estimated carbon emission savings
 - Offline fallback when AI is unavailable
-- 21 passing automated tests
 
 ## Technology Stack
 

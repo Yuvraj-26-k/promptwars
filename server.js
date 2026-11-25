@@ -21,6 +21,14 @@ const mimeTypes = new Map([
   ['.woff2', 'font/woff2'],
 ]);
 const bodyLimit = 16_384;
+const chatLimits = {
+  requestsPerClientPerMinute: 12,
+  requestsPerMinute: 30,
+  aiRequestsPerDay: 200,
+  concurrentRequests: 3,
+};
+const minuteMs = 60_000;
+const dayMs = 86_400_000;
 
 const securityHeaders = {
     'X-Content-Type-Options': 'nosniff',
@@ -42,72 +50,56 @@ const securityHeaders = {
 };
 
 function createChatGuard() {
-    const clients = new Map();
+  const clients = new Map();
+  let minute;
+  let day;
+  let minuteCount = 0;
+  let dailyAiCount = 0;
+  let active = 0;
 
-    let minute = Math.floor(Date.now() / 60000);
-    let day = Math.floor(Date.now() / 86400000);
-    let minuteCount = 0;
-    let dailyCount = 0;
-    let active = 0;
+  return async function guard(clientAddress, aiEnabled, handler) {
+    const now = Date.now();
+    const currentMinute = Math.floor(now / minuteMs);
+    const currentDay = Math.floor(now / dayMs);
 
-    return async function guard(request, aiEnabled, handler) {
-        const now = Date.now();
-        const currentMinute = Math.floor(now / 60000);
-        const currentDay = Math.floor(now / 86400000);
+    if (currentMinute !== minute) {
+      minute = currentMinute;
+      minuteCount = 0;
+      clients.clear();
+    }
+    if (currentDay !== day) {
+      day = currentDay;
+      dailyAiCount = 0;
+    }
 
-        if (currentMinute !== minute) {
-            minute = currentMinute;
-            minuteCount = 0;
-            clients.clear();
-        }
+    const clientCount = clients.get(clientAddress) ?? 0;
+    if (clientCount >= chatLimits.requestsPerClientPerMinute || minuteCount >= chatLimits.requestsPerMinute) {
+      throw new RequestError(429, 'Too many requests. Please try again shortly.');
+    }
+    if (aiEnabled && dailyAiCount >= chatLimits.aiRequestsPerDay) {
+      throw new RequestError(429, 'Daily AI usage limit reached.');
+    }
+    if (active >= chatLimits.concurrentRequests) {
+      throw new RequestError(429, 'Assistant is busy. Please try again shortly.');
+    }
 
-        if (currentDay !== day) {
-            day = currentDay;
-            dailyCount = 0;
-        }
-
-        const ip = request.socket?.remoteAddress || 'unknown';
-        const count = clients.get(ip) || 0;
-
-        if (count >= 12 || minuteCount >= 30) {
-            throw new RequestError(
-                429, 'Too many requests. Please try again shortly.'
-            );
-        }
-
-        if (aiEnabled && dailyCount >= 200) {
-            throw new RequestError(
-                429, 'Daily AI usage limit reached.'
-            );
-        }
-
-        if (active >= 3) {
-            throw new RequestError(
-                429, 'Assistant is busy. Please try again shortly.'
-            );
-        }
-
-        clients.set(ip, count + 1);
-        minuteCount++;
-        if (aiEnabled) dailyCount++;
-        active++;
-
-        try {
-            return await handler();
-        } finally {
-            active--;
-        }
-    };
+    clients.set(clientAddress, clientCount + 1);
+    minuteCount++;
+    if (aiEnabled) dailyAiCount++;
+    active++;
+    try {
+      return await handler();
+    } finally {
+      active--;
+    }
+  };
 }
-
-
 
 function sendJson(response, status, data) {
   response.writeHead(status, {
     ...securityHeaders,
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
-    'X-Content-Type-Options': 'nosniff',
   });
   response.end(JSON.stringify(data));
 }
@@ -156,7 +148,6 @@ async function serveFile(request, response, pathname) {
       ...securityHeaders,
       'Content-Type': mime,
       'Content-Length': data.length,
-      'X-Content-Type-Options': 'nosniff',
       'Cache-Control': 'no-cache',
     });
     response.end(request.method === 'HEAD' ? undefined : data);
@@ -194,18 +185,12 @@ export function createAppServer({
         const { enabled, provider, model } = chat;
         sendJson(response, 200, { chat: { enabled, provider, model } });
       } else if (request.method === 'POST' && url.pathname === '/api/chat') {
-        
-        const result = await guardChat(
-            request,
-            chat.enabled,
-            async () => answerChat(
-                await readJson(request),
-                fetchImpl,
-                chat
-            )
-        );
+        const clientAddress = request.socket?.remoteAddress ?? 'unknown';
+        const result = await guardChat(clientAddress, chat.enabled, async () => {
+          const input = await readJson(request);
+          return answerChat(input, fetchImpl, chat);
+        });
         sendJson(response, 200, result);
-
       } else if (['GET', 'HEAD'].includes(request.method)) {
         await serveFile(request, response, url.pathname);
       } else {

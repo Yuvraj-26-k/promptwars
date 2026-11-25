@@ -263,6 +263,29 @@ export function buildPlan({ city, aqi, pm25, household, commute, distance, habit
   };
 }
 
+export function forecastDecision({ selectedHours = [], ...profile } = {}) {
+  if (!selectedHours.length || unavailableModes.has(profile.dataMode)) return null;
+  const [selected, reference] = selectedHours;
+  if (selectedHours.some(({ time, aqi }) => !Number.isFinite(localTimeMilliseconds(time)) || !Number.isFinite(aqi))) return null;
+  const preferred = reference && reference.aqi < selected.aqi ? reference : selected;
+  const sample = profile.sample === true || profile.dataMode === 'demo';
+  const formatTime = ({ time }) => {
+    const date = new Date(localTimeMilliseconds(time));
+    return `${formatDate.format(date)}, ${formatHour.format(date)}`;
+  };
+  const difference = reference ? Math.abs(selected.aqi - reference.aqi) : 0;
+  const summary = [
+    `${sample ? 'Sample' : 'Estimated'} forecast (local time). ${formatTime(selected)} has AQI ${selected.aqi}.`,
+    reference && `${formatTime(reference)} has AQI ${reference.aqi}.`,
+    reference && (difference
+      ? `${formatTime(preferred)} is lower by ${difference} AQI points.`
+      : 'Both hours have the same estimated AQI.'),
+    reference && selected.aqi >= 151 && reference.aqi >= 151 && 'Both hours are unhealthy.',
+  ].filter(Boolean).join(' ');
+  const [action] = buildPlan({ ...profile, aqi: preferred.aqi, pm25: null, forecast: [], time: undefined }).actions;
+  return { summary, action };
+}
+
 export function localReply(question, profile) {
   const topic = typeof question === 'string' ? question.toLowerCase() : '';
   const plan = buildPlan(profile);
@@ -272,6 +295,9 @@ export function localReply(question, profile) {
   if (/\b(can(?:not|'t|’t) breathe|severe (?:trouble|difficulty) breathing|struggling to breathe)\b/.test(topic)) {
     return 'If anyone is having severe difficulty breathing, contact your local emergency services now.';
   }
+
+  const decision = forecastDecision(profile);
+  if (decision) return `${decision.summary}\n\n${decision.action.description} ${decision.action.impact}`;
 
   if (/\b(clean[- ]air plan|daily plan|action plan)\b/.test(topic)) {
     const actions = plan.actions.map((action, index) => `${index + 1}. ${action.title}. ${action.description} ${action.impact}`);

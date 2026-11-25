@@ -1,6 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildPlan, findCleanerWindow, localReply } from '../plan.js';
+import { buildPlan, findCleanerWindow, forecastDecision, localReply } from '../plan.js';
+
+test('an unhealthy Delhi sample comparison keeps precautions at the lower-AQI hour', () => {
+  const profile = {
+    city: 'Delhi', dataMode: 'demo', household: 'family',
+    selectedHours: [{ time: '2026-01-08T08:00', aqi: 181 }, { time: '2026-01-08T13:00', aqi: 155 }],
+  };
+  const decision = forecastDecision(profile);
+  assert.match(decision.summary, /Sample forecast.*lower by 26 AQI points.*Both hours are unhealthy/);
+  assert.match(decision.action.description, /activities inside/);
+  assert.match(localReply('Compare these hours', profile), /activities inside/);
+  assert.equal(forecastDecision({ ...profile, dataMode: 'cached' }), null);
+});
 
 test('school pickup by car gives an everyday fuel and exhaust reduction', () => {
   const { actions: [routine] } = buildPlan({ city: 'Delhi', aqi: 180, household: 'family', commute: 'car', habits: ['school'] });

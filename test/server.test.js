@@ -35,6 +35,40 @@ function request(server, url, { method = 'GET', body, headers = {} } = {}) {
 const question = 'How can we clean our indoor air?';
 const profile = { city: 'New Delhi', aqi: 189, pm25: 95.4, household: 'family', sample: true };
 
+test('chat limits concurrent provider calls and frees a slot after a provider failure', async () => {
+  const pending = [];
+  let holdProviderCalls = true;
+  let signalCapacityReached;
+  const capacityReached = new Promise((resolve) => { signalCapacityReached = resolve; });
+  const server = testServer({
+    apiKey: 'test-key',
+    fetchImpl: () => {
+      if (!holdProviderCalls) return Response.json(null, { status: 503 });
+      return new Promise((resolve) => {
+        pending.push(resolve);
+        if (pending.length === 3) signalCapacityReached();
+      });
+    },
+  });
+  const ask = () => request(server, '/api/chat', { method: 'POST', body: { question, profile } });
+  const inFlight = [ask(), ask(), ask()];
+  await capacityReached;
+
+  try {
+    const blocked = await ask();
+    assert.equal(blocked.status, 429);
+    assert.match(blocked.body.error, /busy/);
+    assert.equal(pending.length, 3);
+  } finally {
+    for (const resolve of pending.splice(0)) resolve(Response.json(null, { status: 503 }));
+    await Promise.all(inFlight);
+  }
+
+  assert.equal((await inFlight[0]).body.mode, 'local');
+  holdProviderCalls = false;
+  assert.equal((await ask()).status, 200);
+});
+
 test('city search normalizes the Open-Meteo result', async () => {
   let upstream;
   const server = testServer({ fetchImpl: async (url) => {
@@ -201,7 +235,11 @@ test('Gemini receives current model data and strips stale or illustrative foreca
 
   for (const dataMode of ['live', 'cached', 'demo']) {
     const result = await request(server, '/api/chat', {
-      method: 'POST', body: { question, profile: { ...current, dataMode }, history },
+      method: 'POST', body: {
+        question,
+        profile: { ...current, dataMode, selectedForecastTimes: ['2026-11-23T11:00', '2026-11-23T15:00'] },
+        history,
+      },
     });
     assert.deepEqual(result.body, { reply: 'Clean indoor air is a good priority.', mode: 'ai', provider: 'gemini' });
   }
@@ -209,12 +247,18 @@ test('Gemini receives current model data and strips stale or illustrative foreca
   assert.equal(live.dataMode, 'modeled');
   assert.equal(live.time, current.time);
   assert.deepEqual(live.forecast, current.forecast.slice(0, 1));
+  assert.deepEqual(live.selectedHours, live.forecast);
+  assert.match(contexts[0].forecastDecision.summary, /Estimated forecast.*AQI 171/);
   assert.equal(cached.dataMode, 'cached');
   assert.equal(cached.aqi, null);
   assert.equal(cached.pm25, null);
   assert.deepEqual(cached.forecast, []);
+  assert.equal(cached.selectedHours, undefined);
+  assert.equal(contexts[1].forecastDecision, undefined);
   assert.equal(demo.dataMode, 'demo');
   assert.deepEqual(demo.forecast, []);
+  assert.deepEqual(demo.selectedHours, live.selectedHours);
+  assert.match(contexts[2].forecastDecision.summary, /Sample forecast.*AQI 171/);
 });
 
 test('chat stays available when a key is missing or when OpenAI fails', async () => {
