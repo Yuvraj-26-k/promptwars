@@ -121,7 +121,7 @@
           <button id="adapt-plan" class="button button-assistant" type="button" aria-haspopup="dialog" aria-controls="chat-dialog" data-prompt="Adapt my clean air plan for my household or community. Give me one practical daily routine, one indoor air improvement, and one sustainable alternative. Explain the likely impact of each choice.">
             <svg class="icon" aria-hidden="true"><use href="#icon-sparkles"></use></svg> <span id="adapt-plan-label">Adapt my plan</span>
           </button>
-          <button id="share-button" class="button button-secondary" type="button">
+          <button id="share-button" class="button button-secondary" type="button" aria-haspopup="dialog" aria-controls="share-dialog">
             <svg class="icon" aria-hidden="true"><use href="#icon-share"></use></svg> Share plan
           </button>
         </div>
@@ -248,6 +248,22 @@
       <label class="sr-only" for="chat-question">Ask a question</label><input id="chat-question" name="question" maxlength="800" placeholder="Ask a clean air question…" autocomplete="off" aria-describedby="chat-data-note" required>
       <button class="button button-primary icon-button" type="submit" aria-label="Send question"><svg class="icon" aria-hidden="true"><use href="#icon-send"></use></svg></button>
     </form>
+  </dialog>
+
+  <dialog id="share-dialog" class="dialog" aria-labelledby="share-title">
+    <div class="dialog-header">
+      <h2 id="share-title">Share your clean air plan</h2>
+      <form method="dialog">
+        <button class="button icon-button" type="submit" aria-label="Close share preview"><svg class="icon" aria-hidden="true"><use href="#icon-close"></use></svg></button>
+      </form>
+    </div>
+    <label class="sr-only" for="share-preview">Plan text</label>
+    <textarea id="share-preview" class="share-preview" readonly rows="12"></textarea>
+    <div class="share-actions">
+      <button id="copy-plan" class="button button-primary" type="button">Copy plan</button>
+      <button id="share-from-device" class="button button-secondary" type="button" hidden>Share from device</button>
+    </div>
+    <p id="share-status" class="share-status" role="status"></p>
   </dialog>
 
   <div id="toast" class="toast" role="status" hidden></div>

@@ -802,47 +802,45 @@ function shareText() {
   return [title, timestamp, timing, latestPlan.summary, ...actions, latestPlan.footnote].filter(Boolean).join('\n\n');
 }
 
-async function sharePlan() {
-  if (!latestPlan) return;
-  const text = shareText();
-  try {
-    if (navigator.share) {
-      await navigator.share({ title: 'Clean-air plan', text });
-      return;
-    }
-  } catch (error) {
-    if (error?.name === 'AbortError') return;
-  }
-  try {
-    await navigator.clipboard.writeText(text);
-    showToast('Plan copied to your clipboard.');
-  } catch {
-    const content = makeElement('textarea');
-    const previousFocus = document.activeElement;
-    content.value = text;
-    content.setAttribute('readonly', '');
-    content.style.position = 'fixed';
-    content.style.opacity = '0';
-    document.body.append(content);
-    content.select();
-    let copied = false;
+function initializeShare() {
+  const dialog = get('share-dialog');
+  const preview = get('share-preview');
+  const copyButton = get('copy-plan');
+  const deviceButton = get('share-from-device');
+
+  get('share-button')?.addEventListener('click', () => {
+    if (!latestPlan) return;
+    preview.value = shareText();
+    setText('share-status', '');
+    deviceButton.hidden = typeof navigator.share !== 'function';
+    showDialog(dialog, copyButton);
+  });
+
+  copyButton.addEventListener('click', async () => {
     try {
-      copied = document.execCommand('copy');
+      await navigator.clipboard.writeText(preview.value);
+      setText('share-status', 'Plan copied to your clipboard.');
     } catch {
-      // Copy support varies when the clipboard API is unavailable.
-    } finally {
-      content.remove();
-      previousFocus?.focus();
+      preview.focus();
+      preview.select();
+      setText('share-status', 'The plan is selected. Use your browser’s Copy command.');
     }
-    showToast(copied ? 'Plan copied to your clipboard.' : 'This browser could not copy the plan.');
-  }
+  });
+
+  deviceButton.addEventListener('click', async () => {
+    try {
+      await navigator.share({ title: 'Clean-air plan', text: preview.value });
+    } catch (error) {
+      if (error?.name !== 'AbortError') setText('share-status', 'Device sharing is unavailable. You can still copy the plan.');
+    }
+  });
 }
 
 initializeForm();
 initializeLocation();
 initializeAirRefresh();
 initializeChat();
-get('share-button')?.addEventListener('click', () => void sharePlan());
+initializeShare();
 void loadAir();
 
 
