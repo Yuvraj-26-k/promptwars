@@ -719,6 +719,8 @@ async function ask(questionValue) {
   chatQuestion.value = '';
   addMessage('user', question);
   const response = addMessage('assistant', 'Preparing your reply…');
+  await detectChatCity(question, request.signal);
+  if (request.signal.aborted) return;
   const context = profile();
   if (!chatStatus || chatStatusRequest) await loadChatStatus();
   if (request.signal.aborted) return;
@@ -879,3 +881,45 @@ function renderAIResponse(element, answer) {
   });
 }
 
+
+
+async function detectChatCity(question, signal) {
+  const pattern = /\b(?:live in|lives in|living in|located in|based in|air quality in|pollution in|AQI in|smog in|city of|in)\s+([A-Z][a-z]+(?:[ -][A-Z][a-z]+){0,3})/g;
+
+  for (const match of question.matchAll(pattern)) {
+    const name = match[1].trim();
+
+    try {
+      const query = new URLSearchParams({ q: name });
+      const data = await api('/api/cities?' + query, { signal }, 7000);
+
+      if (signal.aborted) return;
+
+      const place = data.cities?.find(item =>
+        isCity(item) &&
+        item.name.toLowerCase() === name.toLowerCase()
+      );
+
+      if (!place) continue;
+
+      if (city.latitude === place.latitude &&
+          city.longitude === place.longitude &&
+          airMode === 'live') return;
+
+      city = place;
+      liveLocation = place;
+      rememberedCity = place;
+      savePreferences();
+
+      await loadAir();
+
+      if (!signal.aborted) {
+        showToast('Chat location: ' + displayCity());
+      }
+
+      return;
+    } catch {
+      if (signal.aborted) return;
+    }
+  }
+}
