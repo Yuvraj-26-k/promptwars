@@ -177,7 +177,7 @@ async function generateOpenAI(fetchImpl, { key, model }, messages) {
       max_output_tokens: 400,
       store: false,
     }),
-  }, 12_000);
+  }, 45_000);
   return (data.output ?? []).flatMap((item) => item.type === 'message' ? item.content : [])
     .filter((part) => part?.type === 'output_text')
     .map((part) => part.text)
@@ -198,7 +198,7 @@ async function generateGemini(fetchImpl, { key, model }, messages) {
       })),
       generationConfig: { maxOutputTokens: 600 },
     }),
-  }, 12_000);
+  }, 45_000);
   return (data.candidates?.[0]?.content?.parts ?? [])
     .filter((part) => !part?.thought && typeof part?.text === 'string')
     .map((part) => part.text)
@@ -253,7 +253,8 @@ async function answerChat(input, fetchImpl, chat) {
       ];
       const reply = await chat.generate(fetchImpl, chat, messages);
       if (reply) return { reply, mode: 'ai', provider: chat.provider };
-    } catch {
+    } catch (error) {
+      console.error("AI provider error:", error.name, error.message);
       // Keep the assistant usable while the model provider is unavailable.
     }
   }
