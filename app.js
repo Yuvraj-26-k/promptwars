@@ -896,7 +896,36 @@ async function ask(questionValue, selectedContext) {
 }
 
 function initializeChat() {
+  const launcher = get('assistant-launcher');
+  const welcome = get('assistant-welcome');
+  const welcomeKey = 'clearskies.assistant-welcome.v1';
+  if (launcher) launcher.hidden = false;
+  if (welcome) {
+    try {
+      welcome.hidden = window.sessionStorage.getItem(welcomeKey) === 'seen';
+    } catch {
+      welcome.hidden = false;
+    }
+  }
+
+  function dismissWelcome() {
+    if (!welcome || welcome.hidden) return;
+    welcome.hidden = true;
+    try {
+      window.sessionStorage.setItem(welcomeKey, 'seen');
+    } catch {
+      // The greeting can still be dismissed when browser storage is disabled.
+    }
+  }
+
+  get('assistant-welcome-close')?.addEventListener('click', () => {
+    dismissWelcome();
+    get('assistant-launch-button')?.focus({ preventScroll: true });
+  });
+  chatDialog?.addEventListener('close', dismissWelcome);
+
   function openChat() {
+    dismissWelcome();
     showDialog(chatDialog, chatQuestion);
     void loadChatStatus();
   }

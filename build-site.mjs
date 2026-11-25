@@ -1,7 +1,8 @@
 import { mkdir, readFile, writeFile, copyFile } from 'node:fs/promises';
 const types = {
   'index.html': 'text/html; charset=utf-8', 'styles.css': 'text/css', 'app.js': 'text/javascript',
-  'plan.js': 'text/javascript', 'assets/winter-city.png': 'image/png'
+  'plan.js': 'text/javascript', 'assets/winter-city.png': 'image/png',
+  'assets/clearskies-assistant.png': 'image/png'
 };
 const assets = {};
 for (const [path, type] of Object.entries(types)) {

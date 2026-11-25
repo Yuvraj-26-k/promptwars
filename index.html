@@ -218,15 +218,26 @@
     </div>
   </dialog>
 
+  <div id="assistant-launcher" class="assistant-launcher" hidden>
+    <div id="assistant-welcome" class="assistant-welcome" hidden>
+      <p><strong>Hi, I’m Breezy!</strong> Ask me about the air where you live.</p>
+      <button id="assistant-welcome-close" class="button icon-button" type="button" aria-label="Dismiss greeting"><svg class="icon" aria-hidden="true"><use href="#icon-close"></use></svg></button>
+    </div>
+    <button id="assistant-launch-button" class="assistant-launch-button" type="button" data-open-chat aria-haspopup="dialog" aria-controls="chat-dialog">
+      <img src="/assets/clearskies-assistant.png" alt="" width="56" height="56">
+      <span>Chat with Breezy</span>
+    </button>
+  </div>
+
   <dialog id="chat-dialog" class="dialog chat-dialog" aria-labelledby="chat-title">
     <div class="dialog-header chat-header">
-      <span class="tile-icon chat-icon"><svg class="icon" aria-hidden="true"><use href="#icon-sparkles"></use></svg></span>
-      <div><h2 id="chat-title">ClearSkies assistant</h2><p id="chat-mode" role="status">Assistant</p></div>
+      <img class="assistant-avatar" src="/assets/clearskies-assistant.png" alt="" width="56" height="56">
+      <div><h2 id="chat-title">Breezy · ClearSkies assistant</h2><p id="chat-mode" role="status">Assistant</p></div>
       <button id="chat-close" class="button icon-button" aria-label="Close assistant" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-close"></use></svg></button>
     </div>
     <p id="chat-data-note" class="chat-data-note">The built-in guide uses your current plan.</p>
     <div id="chat-messages" class="chat-messages" role="log" aria-live="polite" aria-label="Conversation">
-      <div class="chat-message chat-message--assistant">Ask me about going outside, keeping indoor air cleaner, or choosing a lower-emission trip.</div>
+      <div class="chat-message chat-message--assistant">Hi, I’m Breezy! Ask me when to go outside, how to keep the air at home cleaner, or how to make your trip cleaner.</div>
     </div>
     <div class="chat-prompts" aria-label="Suggested questions">
       <button class="button chip" type="button" data-prompt="What should we do about outdoor activity today?">Outdoor activity</button>
