@@ -1,17 +1,19 @@
 import { RequestError, findCities, createAirLookup, answerChat, resolveChatModel } from './air-service.js';
+import { chatBodyLimit, createChatGuard } from './chat-guard.js';
 import { assets } from './generated-assets.js';
 
 const lookup = createAirLookup(fetch);
+const guardChat = createChatGuard();
 
 async function readQuestion(request) {
-  if (request.headers.get('content-type')?.split(';')[0] !== 'application/json') {
+  if (request.headers.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'application/json') {
     throw new RequestError(415, 'Send a JSON question.');
   }
   let bytes = 0;
   const parts = [];
   for await (const part of request.body || []) {
     bytes += part.length;
-    if (bytes > 16384) throw new RequestError(413, 'Chat request is too large.');
+    if (bytes > chatBodyLimit) throw new RequestError(413, 'Chat request is too large.');
     parts.push(part);
   }
   try { return JSON.parse(await new Blob(parts).text()); }
@@ -28,7 +30,14 @@ export default {
       if (request.method === 'GET' && pathname === '/api/status') {
         return Response.json({ chat: { enabled: chat.enabled, provider: chat.provider, model: chat.model } });
       }
-      if (request.method === 'POST' && pathname === '/api/chat') return Response.json(await answerChat(await readQuestion(request), fetch, chat));
+      if (request.method === 'POST' && pathname === '/api/chat') {
+        // Worker requests have no portable, trusted socket address.
+        const result = await guardChat(null, chat.enabled, async () => {
+          const input = await readQuestion(request);
+          return answerChat(input, fetch, chat);
+        });
+        return Response.json(result);
+      }
       const asset = assets[pathname === '/' ? '/index.html' : pathname];
       if (asset && ['GET', 'HEAD'].includes(request.method)) {
         return new Response(request.method === 'HEAD' ? null : Uint8Array.from(atob(asset.data), c => c.charCodeAt(0)), {

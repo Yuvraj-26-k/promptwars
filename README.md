@@ -70,7 +70,7 @@ With both keys set, OpenAI is selected by default. Set `AI_PROVIDER=gemini` or `
 ## Testing, accessibility, and privacy
 
 - Run `npm test` from the project root. The dependency-free Node test runner checks recommendation logic and server behavior with mocked upstream data, so tests run without an API key or internet connection.
-- The Node server limits per-client traffic, total traffic, concurrent chat requests, and daily AI usage per process. When a provider call fails, the chat returns the built-in guide and releases the request slot.
+- Both server entry points share limits for request size, total traffic, concurrent chat requests, and daily AI usage per running instance. The Node server also limits requests by socket address. When a provider call fails, chat returns the built-in guide and releases the request slot.
 - The interface adapts to smaller screens and provides keyboard-operable dialogs, visible focus, labeled controls, text for AQI categories, and live announcements for changing results.
 - The Node server accepts localhost requests and the configured Render hostname. It keeps API keys in its environment or an ignored `.env` file. The browser remembers the selected city and household settings locally. Device coordinates are rounded before the air-data lookup and stay out of saved preferences and chat requests. Recent messages and plan context go to the selected provider only when generative chat is enabled and you ask a question.
 
