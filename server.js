@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { RequestError, findCities, createAirLookup, answerChat, resolveChatModel } from './air-service.js';
 
 const root = dirname(fileURLToPath(import.meta.url));
-const rootFiles = new Set(['index.html', 'styles.css', 'app.js', 'plan.js']);
+const rootFiles = new Set(['index.html', 'styles.css', 'app.js', 'plan.js', 'forecast-chart.js', 'dom.js']);
 const mimeTypes = new Map([
   ['.html', 'text/html; charset=utf-8'],
   ['.css', 'text/css; charset=utf-8'],
