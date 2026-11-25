@@ -22,8 +22,89 @@ const mimeTypes = new Map([
 ]);
 const bodyLimit = 16_384;
 
+const securityHeaders = {
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=(self)',
+    'Content-Security-Policy': [
+        "default-src 'self'",
+        "script-src 'self'",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src 'self' https://fonts.gstatic.com",
+        "img-src 'self' data:",
+        "connect-src 'self'",
+        "frame-ancestors 'none'",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'"
+    ].join('; ')
+};
+
+function createChatGuard() {
+    const clients = new Map();
+
+    let minute = Math.floor(Date.now() / 60000);
+    let day = Math.floor(Date.now() / 86400000);
+    let minuteCount = 0;
+    let dailyCount = 0;
+    let active = 0;
+
+    return async function guard(request, aiEnabled, handler) {
+        const now = Date.now();
+        const currentMinute = Math.floor(now / 60000);
+        const currentDay = Math.floor(now / 86400000);
+
+        if (currentMinute !== minute) {
+            minute = currentMinute;
+            minuteCount = 0;
+            clients.clear();
+        }
+
+        if (currentDay !== day) {
+            day = currentDay;
+            dailyCount = 0;
+        }
+
+        const ip = request.socket?.remoteAddress || 'unknown';
+        const count = clients.get(ip) || 0;
+
+        if (count >= 12 || minuteCount >= 30) {
+            throw new RequestError(
+                429, 'Too many requests. Please try again shortly.'
+            );
+        }
+
+        if (aiEnabled && dailyCount >= 200) {
+            throw new RequestError(
+                429, 'Daily AI usage limit reached.'
+            );
+        }
+
+        if (active >= 3) {
+            throw new RequestError(
+                429, 'Assistant is busy. Please try again shortly.'
+            );
+        }
+
+        clients.set(ip, count + 1);
+        minuteCount++;
+        if (aiEnabled) dailyCount++;
+        active++;
+
+        try {
+            return await handler();
+        } finally {
+            active--;
+        }
+    };
+}
+
+
+
 function sendJson(response, status, data) {
   response.writeHead(status, {
+    ...securityHeaders,
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
     'X-Content-Type-Options': 'nosniff',
@@ -72,6 +153,7 @@ async function serveFile(request, response, pathname) {
     }
     const data = await readFile(file);
     response.writeHead(200, {
+      ...securityHeaders,
       'Content-Type': mime,
       'Content-Length': data.length,
       'X-Content-Type-Options': 'nosniff',
@@ -96,6 +178,7 @@ export function createAppServer({
 } = {}) {
   const chat = resolveChatModel({ provider, apiKey, model, geminiApiKey, geminiModel, ollamaModel: process.env.OLLAMA_MODEL });
   const lookupAir = createAirLookup(fetchImpl);
+  const guardChat = createChatGuard();
   return createServer({ requestTimeout: 15_000, headersTimeout: 10_000 }, async (request, response) => {
     try {
       const host = request.headers.host?.toLowerCase();
@@ -111,7 +194,18 @@ export function createAppServer({
         const { enabled, provider, model } = chat;
         sendJson(response, 200, { chat: { enabled, provider, model } });
       } else if (request.method === 'POST' && url.pathname === '/api/chat') {
-        sendJson(response, 200, await answerChat(await readJson(request), fetchImpl, chat));
+        
+        const result = await guardChat(
+            request,
+            chat.enabled,
+            async () => answerChat(
+                await readJson(request),
+                fetchImpl,
+                chat
+            )
+        );
+        sendJson(response, 200, result);
+
       } else if (['GET', 'HEAD'].includes(request.method)) {
         await serveFile(request, response, url.pathname);
       } else {
