@@ -4,13 +4,21 @@
 
 ClearSkies helps families and community organizers decide what to do on days with poor air quality. It uses local forecasts and household routines to suggest when to go outside, how to keep indoor air cleaner, and how to cut emissions from everyday trips.
 
-[Open the live app](https://promptwars-5mla.onrender.com/) · [Try the Delhi sample](#try-the-delhi-sample) · [Run locally](#run-locally)
+[Open the live app](https://promptwars-5mla.onrender.com/) · [Try the Delhi sample](#try-the-delhi-sample) · [Meet Breezy](#meet-breezy) · [Run locally](#run-locally)
 
 ## Try the Delhi sample
 
 1. Open the location picker and choose **Try Delhi sample**.
 2. Use the forecast slider to select **8 AM**. Tap **Pin this hour**, then move to **1 PM**. The sample shows a drop from **181 to 155 AQI**. Both hours are unhealthy, so the plan suggests moving strenuous activity indoors.
 3. Select **Ask about these hours**, then ask a follow-up such as “What about my kids?” Use **Share plan** to include the comparison and advice in a message.
+
+## Meet Breezy
+
+<img src="assets/clearskies-assistant.png" alt="Breezy, a smiling lavender cloud robot" width="144" height="144">
+
+Breezy is the cloud mascot and chat assistant in ClearSkies. Select **Chat with Breezy** in the bottom-right corner and try asking, “How can I keep the air at home cleaner without a purifier?”
+
+If you open Breezy through **Ask about these hours**, it keeps both forecast readings in context for follow-up questions. The hosted app uses Gemini for chat and switches to a built-in guide if Gemini is unavailable.
 
 ## Screenshots
 
