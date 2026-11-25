@@ -1,4 +1,4 @@
-import { readFile, realpath } from 'node:fs/promises';
+﻿import { readFile, realpath } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { dirname, extname, relative, resolve, sep } from 'node:path';
 import { loadEnvFile } from 'node:process';
@@ -99,7 +99,7 @@ export function createAppServer({
   return createServer({ requestTimeout: 15_000, headersTimeout: 10_000 }, async (request, response) => {
     try {
       const host = request.headers.host?.toLowerCase();
-      if (!host || !/^(?:127\.0\.0\.1|localhost|\[::1\])(?::\d+)?$/.test(host)) {
+      if (!host || (!/^(?:127\.0\.0\.1|localhost|\[::1\])(?::\d+)?$/.test(host) && host !== process.env.RENDER_EXTERNAL_HOSTNAME?.toLowerCase())) {
         throw new RequestError(403, 'Open this application through localhost.');
       }
       const url = new URL(request.url, 'http://localhost');
@@ -135,7 +135,8 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   }
 
   const port = Number(process.env.PORT ?? 3000);
-  createAppServer().listen(port, '127.0.0.1', function announce() {
+  createAppServer().listen(port, '0.0.0.0', function announce() {
     console.log(`Open http://127.0.0.1:${this.address().port} in your browser.`);
   });
 }
+
