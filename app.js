@@ -75,6 +75,7 @@ let toastTimer;
 let geolocationAttempt = 0;
 let chatRequest;
 let chatPlace;
+let chatForecastContext;
 let chatStatus;
 let chatStatusRequest;
 const conversation = [];
@@ -651,6 +652,7 @@ function resetChat() {
   chatRequest?.abort();
   chatRequest = undefined;
   chatPlace = undefined;
+  chatForecastContext = undefined;
   conversation.length = 0;
   if (chatMessages) {
     chatMessages.replaceChildren(...(chatGreeting ? [chatGreeting] : []));
@@ -673,6 +675,10 @@ async function ask(questionValue, selectedContext) {
   chatQuestion.value = '';
   addMessage('user', question);
   const response = addMessage('assistant', 'Preparing your reply…');
+  if (selectedContext) {
+    chatForecastContext = selectedContext;
+    chatPlace = undefined;
+  }
   const context = selectedContext ?? await chatProfile(question, request.signal);
   if (request.signal.aborted) return;
   if (!chatStatus || chatStatusRequest) await loadChatStatus();
@@ -874,17 +880,20 @@ async function chatProfile(question, signal) {
   const locationMention = /\b(?:live in|lives in|living in|located in|based in|city of|in)\s+([A-Z][a-z]+(?:[ -][A-Z][a-z]+){0,3})/;
   const requestedCity = question.match(placeMention)?.[1]?.trim();
   const name = requestedCity || question.match(locationMention)?.[1];
+  if (!name && chatForecastContext) return chatForecastContext;
   const place = name ? await resolveChatPlace(name, signal) : chatPlace;
   if (signal.aborted) return;
   if (place) {
+    chatForecastContext = undefined;
     chatPlace = place;
     return profileForChatPlace(place, signal);
   }
-  if (name) {
-    if (requestedCity) chatPlace = undefined;
-    return requestedCity ? { ...profile(city, null, 'unavailable'), city: requestedCity } : profile();
+  if (requestedCity) {
+    chatForecastContext = undefined;
+    chatPlace = undefined;
+    return { ...profile(city, null, 'unavailable'), city: requestedCity };
   }
-  return profile();
+  return chatForecastContext ?? profile();
 }
 
 async function resolveChatPlace(name, signal) {
