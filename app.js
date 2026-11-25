@@ -237,8 +237,8 @@ function renderAir(loading = false) {
   const marker = get('aqi-marker');
 
   setText('current-city', displayCity());
-  setText('aqi-value', aqi === null ? 'â€”' : aqi);
-  setText('pm25-value', pm25 === null ? 'â€”' : Number(pm25.toFixed(1)));
+  setText('aqi-value', aqi === null ? '—' : aqi);
+  setText('pm25-value', pm25 === null ? '—' : Number(pm25.toFixed(1)));
   setText('aqi-label', category?.name || (loading ? 'Checking air quality' : 'Unavailable'));
   if (label) label.dataset.level = category?.key || 'unavailable';
   if (marker) {
@@ -250,7 +250,7 @@ function renderAir(loading = false) {
   if (source) source.dataset.mode = airMode;
   if (airMode === 'live' || airMode === 'cached') {
     const updated = localClock(air.time, true);
-    setText('air-source', airMode === 'live' ? 'Model estimate Â· Open-Meteo' : 'Last available estimate');
+    setText('air-source', airMode === 'live' ? 'Model estimate · Open-Meteo' : 'Last available estimate');
     setText('air-updated', updated ? `${updated} local time` : 'Open-Meteo model estimate');
     setText('air-description', airMode === 'live' ? category.description : 'This reading may be out of date. Check local advisories before heading out.');
   } else if (airMode === 'demo') {
@@ -276,11 +276,11 @@ function renderAirFeedback(loading) {
   if (refresh) {
     refresh.disabled = loading;
     refresh.setAttribute('aria-busy', String(loading));
-    setText('refresh-label', loading ? 'Refreshingâ€¦' : sample ? 'Return to live' : 'Refresh air');
+    setText('refresh-label', loading ? 'Refreshing…' : sample ? 'Return to live' : 'Refresh air');
   }
 
   let message = '';
-  if (sample) message = 'Youâ€™re viewing a sample scenario. Return to live for estimates at your selected location.';
+  if (sample) message = 'You’re viewing a sample scenario. Return to live for estimates at your selected location.';
   if (airMode === 'cached') message = loading
     ? 'Checking for a fresh estimate. The value shown is an earlier reading.'
     : 'A current estimate is unavailable. Your plan uses general guidance until fresh data returns.';
@@ -301,7 +301,7 @@ function renderForecast(loading) {
   const points = (airMode !== 'cached' && Array.isArray(air?.forecast) ? air.forecast : [])
     .filter((point) => point && Number.isFinite(point.aqi) && typeof point.time === 'string').slice(0, 24);
   if (points.length < 2) {
-    container.append(makeElement('div', 'forecast-empty', loading ? 'Loading forecastâ€¦' : 'Forecast unavailable'));
+    container.append(makeElement('div', 'forecast-empty', loading ? 'Loading forecast…' : 'Forecast unavailable'));
     setText('forecast-note', airMode === 'cached' && !loading ? 'A fresh estimate is needed for forecast guidance.' : '');
     return;
   }
@@ -349,19 +349,19 @@ function renderForecast(loading) {
   for (const index of indices) times.append(makeElement('span', '', localClock(points[index].time)));
   container.append(times);
 
-  const range = `${Math.round(Math.min(...values))}â€“${Math.round(Math.max(...values))}`;
+  const range = `${Math.round(Math.min(...values))}–${Math.round(Math.max(...values))}`;
   if (airMode === 'demo') {
-    setText('forecast-note', `Sample forecast Â· AQI ${range}`);
+    setText('forecast-note', `Sample forecast · AQI ${range}`);
   } else {
     const window = findCleanerWindow(points, air.time);
     if (window && window.maxAqi + 15 <= air.aqi) {
       const start = localClock(window.start, window.start.slice(0, 10) !== air.time.slice(0, 10), false);
       const end = localClock(window.end, window.end.slice(0, 10) !== window.start.slice(0, 10), false);
-      setText('forecast-note', `Lower-AQI window Â· ${start} to ${end} local time Â· up to ${Math.round(window.maxAqi)}`);
+      setText('forecast-note', `Lower-AQI window · ${start} to ${end} local time · up to ${Math.round(window.maxAqi)}`);
     } else if (values.every((value) => value >= 151)) {
       setText('forecast-note', 'The forecast stays at unhealthy levels.');
     } else {
-      setText('forecast-note', `Forecast AQI ${range} Â· all times local`);
+      setText('forecast-note', `Forecast AQI ${range} · all times local`);
     }
   }
 }
@@ -540,7 +540,7 @@ function useDeviceLocation() {
   cityRequest?.abort();
   window.clearTimeout(cityTimer);
   if (button) button.disabled = true;
-  setText('location-status', 'Waiting for location permissionâ€¦');
+  setText('location-status', 'Waiting for location permission…');
 
   function acceptResult() {
     if (attempt !== geolocationAttempt || !locationDialog?.open) return false;
@@ -589,7 +589,7 @@ async function searchCities(query) {
   cityRequest = request;
   const local = localCities(query);
   renderCities(local);
-  setText('location-status', 'Searching for citiesâ€¦');
+  setText('location-status', 'Searching for cities…');
   try {
     const search = new URLSearchParams({ q: query });
     const data = await api(`/api/cities?${search}`, { signal: request.signal }, 7000);
@@ -613,7 +613,7 @@ function queueCitySearch() {
     setText('location-status', query ? 'Enter at least two characters.' : '');
     return;
   }
-  setText('location-status', 'Searching for citiesâ€¦');
+  setText('location-status', 'Searching for cities…');
   cityTimer = window.setTimeout(() => void searchCities(query), 240);
 }
 
@@ -667,7 +667,7 @@ const providerNames = { openai: 'OpenAI', gemini: 'Gemini', ollama: 'Local Ollam
 
 function describeChatStatus() {
   if (!chatStatus) {
-    setText('chat-mode', 'Checking assistant setupâ€¦');
+    setText('chat-mode', 'Checking assistant setup…');
     return;
   }
 
@@ -718,7 +718,7 @@ async function ask(questionValue) {
   chatMessages?.setAttribute('aria-busy', 'true');
   chatQuestion.value = '';
   addMessage('user', question);
-  const response = addMessage('assistant', 'Preparing your replyâ€¦');
+  const response = addMessage('assistant', 'Preparing your reply…');
   const context = profile();
   if (!chatStatus || chatStatusRequest) await loadChatStatus();
   if (request.signal.aborted) return;
@@ -740,11 +740,11 @@ async function ask(questionValue) {
 
   const answer = typeof result?.reply === 'string' && result.reply.trim() ? result.reply : localReply(question, context);
   const isAi = result?.mode === 'ai';
-  response.textContent = answer;
+  renderAIResponse(response, answer);
   if (context.dataMode === 'live' && context.time && Number.isFinite(context.aqi)) {
     const evidence = makeElement('p', 'reply-evidence');
-    evidence.textContent = `Air data for ${context.city} Â· ${localClock(context.time, true)} local time Â· US AQI ${context.aqi}`;
-    if (Number.isFinite(context.pm25)) evidence.append(` Â· PMâ‚‚.â‚… ${context.pm25} Âµg/mÂ³`);
+    evidence.textContent = `Air data for ${context.city} · ${localClock(context.time, true)} local time · US AQI ${context.aqi}`;
+    if (Number.isFinite(context.pm25)) evidence.append(` · PM₂.₅ ${context.pm25} µg/m³`);
     const source = makeElement('a', '', 'Open-Meteo / CAMS model estimate');
     source.href = 'https://open-meteo.com/en/docs/air-quality-api';
     source.target = '_blank';
@@ -758,8 +758,8 @@ async function ask(questionValue) {
   if (sendButton) sendButton.disabled = false;
   if (chatMode) {
     const provider = providerNames[result?.provider] || 'AI';
-    chatMode.textContent = isAi ? `AI reply Â· ${provider}` : result?.reason === 'provider_unavailable'
-      ? 'AI unavailable Â· built-in guide' : 'Built-in guide';
+    chatMode.textContent = isAi ? `AI reply · ${provider}` : result?.reason === 'provider_unavailable'
+      ? 'AI unavailable · built-in guide' : 'Built-in guide';
     chatMode.dataset.mode = isAi ? 'ai' : 'local';
   }
   if (chatMessages) {
@@ -850,3 +850,32 @@ initializeAirRefresh();
 initializeChat();
 get('share-button')?.addEventListener('click', () => void sharePlan());
 void loadAir();
+
+
+function renderAIResponse(element, answer) {
+  element.replaceChildren();
+  element.style.whiteSpace = 'pre-wrap';
+
+  const lines = answer.split(/\r?\n/);
+
+  lines.forEach((line, index) => {
+    line = line.replace(/^\s*[-*]\s+/, '\u2022 ');
+
+    const parts = line.split(/(\*\*[^*]+\*\*)/g);
+
+    for (const part of parts) {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        const bold = document.createElement('strong');
+        bold.textContent = part.slice(2, -2);
+        element.appendChild(bold);
+      } else {
+        element.appendChild(document.createTextNode(part));
+      }
+    }
+
+    if (index < lines.length - 1) {
+      element.appendChild(document.createTextNode('\n'));
+    }
+  });
+}
+
