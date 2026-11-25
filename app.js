@@ -1,4 +1,4 @@
-import { buildPlan, findCleanerWindow, forecastDecision, localReply } from './plan.js';
+import { buildPlan, findCleanerWindow, findLowerAqiHour, forecastDecision, localReply } from './plan.js';
 
 const cities = [
   { name: 'Delhi', region: 'Delhi', country: 'India', latitude: 28.61, longitude: 77.23, timezone: 'Asia/Kolkata' },
@@ -374,19 +374,24 @@ function renderForecast(loading) {
   control.setAttribute('aria-label', 'Explore forecast by hour');
   const buttons = makeElement('div', 'forecast-actions');
   const pin = makeElement('button', 'button button-secondary', 'Pin this hour');
+  const findHour = makeElement('button', 'button button-secondary', 'Find a lower-AQI hour');
   const askHour = makeElement('button', 'button button-assistant', 'Ask about this hour');
   control.dataset.forecastControl = 'slider';
   pin.dataset.forecastControl = 'pin';
+  findHour.dataset.forecastControl = 'find';
   askHour.dataset.forecastControl = 'ask';
-  pin.type = askHour.type = 'button';
+  pin.type = findHour.type = askHour.type = 'button';
   askHour.setAttribute('aria-haspopup', 'dialog');
   const comparison = makeElement('p', 'forecast-comparison');
-  buttons.append(pin, askHour);
-  explorer.append(detail, control, buttons, comparison);
+  const searchResult = makeElement('p', 'forecast-comparison');
+  searchResult.setAttribute('role', 'status');
+  buttons.append(pin, findHour, askHour);
+  explorer.append(detail, control, buttons, searchResult, comparison);
   container.append(explorer);
 
   function selectHour(index) {
     const point = points[index];
+    if (control.value !== String(index)) searchResult.textContent = '';
     const x = xAt(index);
     const label = localClock(point.time, true, true) + ' local time';
     const aqi = Math.round(point.aqi);
@@ -431,6 +436,17 @@ function renderForecast(loading) {
     pinnedTime = pinnedTime ? undefined : points[Number(control.value)].time;
     selectHour(Number(control.value));
   });
+  findHour.addEventListener('click', () => {
+    const selected = points[Number(control.value)];
+    const lowerHour = findLowerAqiHour(points, selected);
+    if (!lowerHour) {
+      searchResult.textContent = 'No lower AQI is shown in the next six hours of this forecast.';
+      return;
+    }
+    pinnedTime = selected.time;
+    selectHour(points.indexOf(lowerHour));
+    searchResult.textContent = `Found a lower AQI at ${localClock(lowerHour.time, true, true)} local time.`;
+  });
   askHour.addEventListener('click', () => {
     const context = forecastProfile();
     showDialog(chatDialog, chatQuestion);
@@ -439,7 +455,7 @@ function renderForecast(loading) {
       : 'What does this selected forecast hour mean for my outdoor plans?', context);
   });
   selectHour(Math.max(0, points.findIndex((point) => point.time === selectedTime)));
-  const focusTarget = [control, pin, askHour].find((element) => element.dataset.forecastControl === focusedControl);
+  const focusTarget = [control, pin, findHour, askHour].find((element) => element.dataset.forecastControl === focusedControl);
   focusTarget?.focus({ preventScroll: true });
 
   const range = `${Math.round(Math.min(...values))}–${Math.round(Math.max(...values))}`;

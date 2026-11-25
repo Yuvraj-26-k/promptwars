@@ -1,6 +1,20 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildPlan, findCleanerWindow, forecastDecision, localReply } from '../plan.js';
+import { buildPlan, findCleanerWindow, findLowerAqiHour, forecastDecision, localReply } from '../plan.js';
+
+test('finds the earliest lowest-AQI hour in the next six hours across midnight', () => {
+  const selected = { time: '2026-01-08T22:00', aqi: 181 };
+  const earlier = { time: '2026-01-09T00:00', aqi: 155 };
+  const forecast = [
+    { time: '2026-01-08T21:00', aqi: 90 },
+    { time: '2026-01-09T04:00', aqi: 155 },
+    { time: '2026-01-09T05:00', aqi: 90 },
+    earlier,
+  ];
+  assert.equal(findLowerAqiHour(forecast, selected), earlier);
+  assert.equal(findLowerAqiHour(forecast, earlier), forecast[2]);
+  assert.equal(findLowerAqiHour(forecast, { ...selected, aqi: 155 }), null);
+});
 
 test('an unhealthy Delhi sample comparison keeps precautions at the lower-AQI hour', () => {
   const profile = {

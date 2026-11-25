@@ -263,6 +263,20 @@ export function buildPlan({ city, aqi, pm25, household, commute, distance, habit
   };
 }
 
+export function findLowerAqiHour(forecast, selected) {
+  const start = localTimeMilliseconds(selected.time);
+  const end = start + 6 * oneHour;
+  if (!Number.isFinite(start) || !Number.isFinite(selected.aqi)) return null;
+
+  let best = null;
+  for (const point of forecast) {
+    const time = localTimeMilliseconds(point.time);
+    if (!(time > start && time <= end) || !Number.isFinite(point.aqi) || point.aqi >= selected.aqi) continue;
+    if (!best || point.aqi < best.aqi || (point.aqi === best.aqi && point.time < best.time)) best = point;
+  }
+  return best;
+}
+
 export function forecastDecision({ selectedHours = [], ...profile } = {}) {
   if (!selectedHours.length || unavailableModes.has(profile.dataMode)) return null;
   const [selected, reference] = selectedHours;
