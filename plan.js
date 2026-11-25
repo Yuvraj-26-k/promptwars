@@ -311,14 +311,14 @@ export function localReply(question, profile) {
   }
 
   const decision = forecastDecision(profile);
-  if (decision) return `${decision.summary}\n\n${decision.action.description} ${decision.action.impact}`;
+  const asksAboutSelectedHours = decision && /\b(?:forecast|comparison|(?:these|those|selected|pinned|both|two)\s+hours?)\b/.test(topic);
 
   if (/\b(clean[- ]air plan|daily plan|action plan)\b/.test(topic)) {
     const actions = plan.actions.map((action, index) => `${index + 1}. ${action.title}. ${action.description} ${action.impact}`);
     return [plan.summary, ...actions].join('\n\n');
   }
 
-  if (/\b(what (does|is|are)|what’s|what's|explain|define|meaning of)\b.{0,25}\b(aqi|pm\s?2\.?5|air quality|reading)\b/.test(topic)) {
+  if (!asksAboutSelectedHours && /\b(what (does|is|are)|what’s|what's|explain|define|meaning of)\b.{0,25}\b(aqi|pm\s?2\.?5|air quality|reading)\b/.test(topic)) {
     return `${plan.summary} AQI summarizes outdoor pollution and health concern. PM₂.₅ measures the concentration of fine particles in the outdoor air.`;
   }
 
@@ -347,6 +347,8 @@ export function localReply(question, profile) {
   if (/\b(commut\w*|trip\w*|driv\w*|car|bik\w*|cycl\w*|transit|bus|train|co₂|co2|carbon|emissions)\b/.test(topic)) {
     return `${swap.description} ${swap.impact}`;
   }
+
+  if (decision) return `${decision.summary}\n\n${decision.action.description} ${decision.action.impact}`;
 
   if (/\b(outside|outdoors?|exercise|recess|school|sport\w*|run\w*|walk\w*|play\w*|children|kids|forecast|cleaner hours?|better time)\b/.test(topic)) {
     return `${routine.description} ${routine.impact}`;

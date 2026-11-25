@@ -16,16 +16,28 @@ test('finds the earliest lowest-AQI hour in the next six hours across midnight',
   assert.equal(findLowerAqiHour(forecast, { ...selected, aqi: 155 }), null);
 });
 
+const delhiSample = {
+  city: 'Delhi', dataMode: 'demo', household: 'family', aqi: 178,
+  selectedHours: [{ time: '2026-01-08T08:00', aqi: 181 }, { time: '2026-01-08T13:00', aqi: 155 }],
+};
+
 test('an unhealthy Delhi sample comparison keeps precautions at the lower-AQI hour', () => {
-  const profile = {
-    city: 'Delhi', dataMode: 'demo', household: 'family',
-    selectedHours: [{ time: '2026-01-08T08:00', aqi: 181 }, { time: '2026-01-08T13:00', aqi: 155 }],
-  };
-  const decision = forecastDecision(profile);
+  const decision = forecastDecision(delhiSample);
   assert.match(decision.summary, /Sample forecast.*lower by 26 AQI points.*Both hours are unhealthy/);
   assert.match(decision.action.description, /activities inside/);
-  assert.match(localReply('Compare these hours', profile), /activities inside/);
-  assert.equal(forecastDecision({ ...profile, dataMode: 'cached' }), null);
+  assert.match(localReply('Compare these hours', delhiSample), /activities inside/);
+  assert.equal(forecastDecision({ ...delhiSample, dataMode: 'cached' }), null);
+});
+
+test('the built-in guide keeps forecast follow-ups and responds when the topic changes', () => {
+  const forecast = localReply('What are the AQI values for those hours?', delhiSample);
+  const kids = localReply('What about my kids?', delhiSample);
+  const indoor = localReply('How can I improve indoor air without a purifier?', delhiSample);
+
+  assert.match(forecast, /AQI 181.*AQI 155/);
+  assert.match(kids, /Both hours are unhealthy.*\n\n.*activities inside/);
+  assert.match(indoor, /Skip candles, incense, and indoor smoking/);
+  assert.doesNotMatch(indoor, /Sample forecast/);
 });
 
 test('school pickup by car gives an everyday fuel and exhaust reduction', () => {
