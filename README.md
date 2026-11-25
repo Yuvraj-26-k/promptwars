@@ -1,8 +1,30 @@
 # ClearSkies
 
-**PromptWars vertical — Winter smog and urban air pollution**
+**Urban Air Quality Assistant · PromptWars 2026 Challenge 6 · Team Mr. Robot**
 
-ClearSkies turns local air-quality estimates into three decisions families and communities can make today. Each plan suggests a lower-exposure routine, a practical indoor air improvement, and a sustainable travel or scheduling alternative. Every action explains its expected effect on pollution exposure or emissions.
+ClearSkies helps families and community organizers decide what to do on days with poor air quality. It uses local forecasts and household routines to suggest when to go outside, how to keep indoor air cleaner, and how to cut emissions from everyday trips.
+
+[Open the live app](https://promptwars-5mla.onrender.com/) · [Try the Delhi sample](#try-the-delhi-sample) · [Run locally](#run-locally)
+
+## Try the Delhi sample
+
+1. Open the location picker and choose **Try Delhi sample**.
+2. Use the forecast slider to select **8 AM**. Tap **Pin this hour**, then move to **1 PM**. The sample shows a drop from **181 to 155 AQI**. Both hours are unhealthy, so the plan suggests moving strenuous activity indoors.
+3. Select **Ask about these hours**, then ask a follow-up such as “What about my kids?” Use **Share plan** to include the comparison and advice in a message.
+
+## Screenshots
+
+These Amritsar screenshots show how ClearSkies handles a gap in live data. The dashboard labels the last available reading and the planner offers general guidance until fresh estimates return.
+
+### Air-quality dashboard
+
+![ClearSkies dashboard for Amritsar labels AQI 218 as the last available estimate and shows that the forecast is unavailable.](docs/images/amritsar-dashboard.png)
+
+### Clean-air plan
+
+![ClearSkies plan for a family with children, showing options for outdoor routines, indoor air, and travel.](docs/images/amritsar-clean-air-plan.png)
+
+## Who it helps
 
 - **Families and caregivers** can adjust outdoor play and errands, set up a cleaner room, and choose a lower-emission trip. A sensitive-household setting adapts recommendations for people at greater risk from air pollution.
 - **Community organizers** can adapt outdoor group activities, coordinate shared indoor spaces and trips, and share a plan with neighbors.
@@ -58,25 +80,6 @@ With both keys set, OpenAI is selected by default. Set `AI_PROVIDER=gemini` or `
 - U.S. AQI categories and particle exposure guidance. [AirNow AQI basics](https://www.airnow.gov/aqi/aqi-basics/) · [AirNow particle pollution guide](https://www.airnow.gov/publications/air-quality-index/air-quality-guide-for-particle-pollution/)
 - Indoor filtration and typical gasoline-car tailpipe CO₂. [EPA air cleaner guide](https://www.epa.gov/indoor-air-quality-iaq/guide-air-cleaners-home) · [EPA passenger-vehicle emissions factor](https://www.epa.gov/greenvehicles/greenhouse-gas-emissions-typical-passenger-vehicle)
 - Reducing exhaust during school pickup. [EPA Idle-Free Schools Toolkit](https://www.epa.gov/schools/idle-free-schools-toolkit-healthy-school-environment)
-
-## Live Application
-
-https://promptwars-5mla.onrender.com
-
-## Competition
-
-PromptWars 2026 - Challenge 6: Urban Air Quality Assistant
-
-## Key Features
-
-- Gemini-powered personalized AI assistant
-- Automatic city detection from conversations
-- Location-based air quality estimates
-- Hourly pollution forecasts
-- Personalized low-emission daily routines
-- Affordable indoor air quality recommendations
-- Estimated carbon emission savings
-- Offline fallback when AI is unavailable
 
 ## Technology Stack
 
