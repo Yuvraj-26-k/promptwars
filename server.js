@@ -7,7 +7,7 @@ import { RequestError, findCities, createAirLookup, answerChat, resolveChatModel
 import { chatBodyLimit, createChatGuard } from './chat-guard.js';
 
 const root = dirname(fileURLToPath(import.meta.url));
-const rootFiles = new Set(['index.html', 'styles.css', 'app.js', 'plan.js', 'forecast-chart.js', 'dom.js']);
+const rootFiles = new Set(['index.html', 'styles.css', 'app.js', 'plan.js', 'forecast-chart.js', 'dom.js', 'chat.js']);
 const mimeTypes = new Map([
   ['.html', 'text/html; charset=utf-8'],
   ['.css', 'text/css; charset=utf-8'],

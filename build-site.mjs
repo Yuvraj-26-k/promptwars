@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile, copyFile } from 'node:fs/promises';
 const types = {
   'index.html': 'text/html; charset=utf-8', 'styles.css': 'text/css', 'app.js': 'text/javascript',
   'plan.js': 'text/javascript', 'forecast-chart.js': 'text/javascript', 'dom.js': 'text/javascript',
+  'chat.js': 'text/javascript',
   'assets/winter-city.png': 'image/png',
   'assets/clearskies-assistant.png': 'image/png'
 };

@@ -155,7 +155,7 @@ test('static routes serve the page and reject configuration, source, and travers
   assert.equal(page.status, 200);
   assert.match(page.headers['Content-Type'], /^text\/html/);
   assert.equal(page.body, undefined);
-  for (const path of ['/forecast-chart.js', '/dom.js', '/assets/clearskies-assistant.png']) {
+  for (const path of ['/forecast-chart.js', '/dom.js', '/chat.js', '/assets/clearskies-assistant.png']) {
     const asset = await request(server, path);
     assert.equal(asset.status, 200, path);
     assert.ok(asset.body.length > 0, path);
